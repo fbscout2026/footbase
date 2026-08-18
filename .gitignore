@@ -24,5 +24,11 @@ backups/
 .DS_Store
 Thumbs.db
 
+# Internal dev planning/session-log docs — useful as local context across sessions,
+# not needed in the deployed product's repo.
+CLAUDE.md
+PLANO_EXECUCAO_V3.md
+PROJECT_STATE.md
+
 # Accidental duplicate folder from a copy-paste of the project directory
 types - Copia/
