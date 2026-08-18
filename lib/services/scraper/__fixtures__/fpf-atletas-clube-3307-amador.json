@@ -1,0 +1,106 @@
+{
+  "Codigo": 0,
+  "Sucesso": true,
+  "Mensagem": "",
+  "Retorno": [
+    {
+      "IdAtleta": 530973,
+      "IdClube": 3307,
+      "Apelido": "Alex",
+      "Nome": "Alex dos Santos Oliveira",
+      "Imagem": "https://conteudo.fpf.org.br/Pessoas/627034/DOCUMENTOS/foto/84def250-4ecb-4588-97ba-15261d7f40c6.jpg",
+      "Sexo": "M",
+      "Categoria": "A",
+      "DataNascimento": "2012-03-01T00:00:00",
+      "PageSize": 8,
+      "Total": 90
+    },
+    {
+      "IdAtleta": 506813,
+      "IdClube": 3307,
+      "Apelido": "Alex Theodoro",
+      "Nome": "Alex Theodoro Ferreira da Silva",
+      "Imagem": "https://conteudo.fpf.org.br/Pessoas/576854/DOCUMENTOS/foto/c1090f5a-b086-472c-b650-02d029b3daad.jpg",
+      "Sexo": "M",
+      "Categoria": "A",
+      "DataNascimento": "2013-04-25T00:00:00",
+      "PageSize": 8,
+      "Total": 90
+    },
+    {
+      "IdAtleta": 531657,
+      "IdClube": 3307,
+      "Apelido": "André",
+      "Nome": "André Henrique Rodrigues de Araújo Filho",
+      "Imagem": "https://conteudo.fpf.org.br/Pessoas/628449/DOCUMENTOS/foto/2c31588d-98e7-46e2-8863-751cca01b137.jpg",
+      "Sexo": "M",
+      "Categoria": "A",
+      "DataNascimento": "2008-06-02T00:00:00",
+      "PageSize": 8,
+      "Total": 90
+    },
+    {
+      "IdAtleta": 514385,
+      "IdClube": 3307,
+      "Apelido": "André",
+      "Nome": "André Soares Felizardo Filho",
+      "Imagem": "https://conteudo.fpf.org.br/Pessoas/600338/DOCUMENTOS/foto/a163df70-d87e-4715-af0c-ddb84ee115ff.jpg",
+      "Sexo": "M",
+      "Categoria": "A",
+      "DataNascimento": "2008-02-19T00:00:00",
+      "PageSize": 8,
+      "Total": 90
+    },
+    {
+      "IdAtleta": 505691,
+      "IdClube": 3307,
+      "Apelido": "Andrey",
+      "Nome": "Andrey Alves Silva Borges",
+      "Imagem": "https://conteudo.fpf.org.br/Pessoas/567483/DOCUMENTOS/foto/d866f405-a9d1-4c90-9d6d-48a33b7541a6.jpg",
+      "Sexo": "M",
+      "Categoria": "A",
+      "DataNascimento": "2012-10-29T00:00:00",
+      "PageSize": 8,
+      "Total": 90
+    },
+    {
+      "IdAtleta": 527663,
+      "IdClube": 3307,
+      "Apelido": "Antony",
+      "Nome": "Antony Fagundes Reis",
+      "Imagem": "https://conteudo.fpf.org.br/Pessoas/622487/DOCUMENTOS/foto/fb50a509-ce44-481c-9137-7fba145668b2.jpeg",
+      "Sexo": "M",
+      "Categoria": "A",
+      "DataNascimento": "2014-01-11T00:00:00",
+      "PageSize": 8,
+      "Total": 90
+    },
+    {
+      "IdAtleta": 494458,
+      "IdClube": 3307,
+      "Apelido": "Arthur",
+      "Nome": "Arthur Sousa Santos",
+      "Imagem": "https://conteudo.fpf.org.br/Pessoas/483947/DOCUMENTOS/foto/be2748a9-b2f2-4013-82be-f91dcb7a1f84.jpg",
+      "Sexo": "M",
+      "Categoria": "A",
+      "DataNascimento": "2012-06-07T00:00:00",
+      "PageSize": 8,
+      "Total": 90
+    },
+    {
+      "IdAtleta": 531640,
+      "IdClube": 3307,
+      "Apelido": "Arthur Almeida",
+      "Nome": "Arthur Almeida dos Santos",
+      "Imagem": "https://conteudo.fpf.org.br/Pessoas/628419/DOCUMENTOS/foto/febb383e-03c3-4624-ba38-16c638120fa5.jpg",
+      "Sexo": "M",
+      "Categoria": "A",
+      "DataNascimento": "2012-01-07T00:00:00",
+      "PageSize": 8,
+      "Total": 90
+    }
+  ],
+  "Pagination": true,
+  "PageSize": 0,
+  "Total": 0
+}

@@ -1,0 +1,34 @@
+-- Fix (Session 50, first live CBF write): clubes.source_key only had a PARTIAL
+-- unique index (`idx_clubes_source_key ... where source_key is not null`), which
+-- Postgres cannot use as an `ON CONFLICT (source_key)` inference target unless the
+-- INSERT statement repeats the exact same WHERE predicate — something PostgREST's
+-- simple `.upsert(row, { onConflict: "source_key" })` (used by `ingest.ts`) never
+-- emits. Every live upsert into `clubes` was silently failing ("there is no unique or
+-- exclusion constraint matching the ON CONFLICT specification"), caught by
+-- `ingest.ts`'s try/catch, which meant `partidas_sumula`/`atuacoes_sumula` never got
+-- written either (both come AFTER the clubes upsert in the same function) — confirmed
+-- live: the very first `INGESTION_LIVE_ENABLED=true` run created the tournament row
+-- (no ON CONFLICT needed there) but wrote zero matches/appearances across all 15
+-- attempted, all logged `scraping_logs.status='failed'`.
+--
+-- Consumidores atuais: só `ingest.ts` (`clubes` upsert por `source_key`) depende
+-- disto batendo com uma constraint real. Nenhuma outra rota/RPC usa `ON CONFLICT
+-- (source_key)`.
+-- Impacto no scraper: sem isto, a ingestão live NUNCA escreve `clubes`/`partidas_sumula`
+-- /`atuacoes_sumula` para nenhuma fonte (CBF/FERJ/FPF) — bloqueio total, não parcial.
+-- Compatibilidade: um UNIQUE CONSTRAINT normal (sem WHERE) permite múltiplos NULL
+-- (regra padrão do SQL — NULL nunca é igual a NULL), então clubes sem `source_key`
+-- (cadastro manual/seed antigo) continuam válidos sem exigir backfill algum.
+-- Migração: expand/contract não se aplica aqui — não é uma coluna nova nem uma
+-- renomeação, é só trocar o TIPO de índice (parcial → constraint completa) sobre a
+-- mesma coluna já existente; nenhuma leitura/escrita existente muda de forma.
+-- Backfill: nenhum necessário (ver Compatibilidade acima).
+-- Teste: `ONLY_SOURCE=cbf ONLY_COMPETITION="copa do nordeste" INGESTION_LIVE_ENABLED=true
+--   npm run ingest:dry-run` re-rodado após esta migração — confirmar que `clubes`,
+--   `partidas_sumula` e `atuacoes_sumula` passam a ter linhas novas.
+-- Rollback: `alter table clubes drop constraint clubes_source_key_key; create unique
+--   index idx_clubes_source_key on clubes (source_key) where source_key is not null;`
+--   (volta exatamente ao estado anterior, sem perda de dado).
+
+drop index if exists idx_clubes_source_key;
+alter table clubes add constraint clubes_source_key_key unique (source_key);

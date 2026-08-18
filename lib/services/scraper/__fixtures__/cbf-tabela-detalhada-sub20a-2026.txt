@@ -1,0 +1,1405 @@
+
+
+1234
+0041ª
+20/02sex
+15:00AGrêmioRS
+2
+x
+5
+PalmeirasSP Airton Ferreira da Silva Eldorado do SulRS   
+0051
+20/02sex
+15:00São PauloSP
+2
+x
+1
+BotafogoRJ Marcelo Portugal CotiaSP    
+0081
+20/02sex
+15:00Red Bull BragantinoSP
+4
+x
+6
+FlamengoRJ CPD Atibaia AtibaiaSP    
+010120/02sex15:00Vasco da GamaRJ
+3
+x
+2
+AthleticoPRNivaldo PereiraNova IguaçuRJ    
+0021
+21/02sáb
+15:00FluminenseRJ
+2
+x
+2
+FortalezaCEMarcelo VieiraDuque de CaxiasRJ    
+0071ª
+ 21/02sáb
+15:00CorinthiansSP
+4
+x
+0
+AméricaMG Alfredo SchürigSão PauloSP    
+006121/02sáb15:00CruzeiroMG
+2
+x
+0
+JuventudeRS CT Toca da Raposa* Belo HorizonteMG    
+0011ª
+21/02sáb
+15:00VitóriaBA
+2
+x
+1
+CriciúmaSC Pituaçu* SalvadorBA    
+0031
+21/02sáb
+16:00CuiabáMT
+2
+x
+1
+BahiaBA CT Manoel Dresch* CuiabáMT    
+009122/02dom15:00AvaíSC
+0
+x
+1
+SantosSP Ressacada FlorianópolisSC    
+0132ª
+23/02seg
+19:00FlamengoRJ
+1
+x
+4
+Vasco da GamaRJLuso BrasileiroRio de JaneiroRJ1   
+0182
+23/02seg
+21:30PalmeirasSP
+3
+x
+3
+São PauloSP Arena Barueri BarueriSP1   
+0122
+24/02ter
+15:00JuventudeRS
+1
+x
+1
+Red Bull BragantinoSP Homero Soldatelli Flores de CunhaRS    
+014224/02ter15:00AthleticoPR
+2
+x
+0
+CuiabáMT CAT do Caju*Curitiba PR    
+0152
+24/02ter
+15:30FortalezaCE
+0
+x
+0
+VitóriaBA CT Ribamar Bezerra*MaracanaúCE    
+0162
+25/02qua
+15:00AméricaMG
+2
+x
+2
+FluminenseRJ Arena Urbsan BetimMG    
+017225/02qua15:00SantosSP
+4
+x
+1
+GrêmioRS CT Rei Pelé* SantosSP    
+0202
+25/02qua
+15:00CriciúmaSC
+2
+x
+1
+CruzeiroMGCT Antenor Angeloni*CriciúmaSC    
+011
+26/02qui
+15:00BahiaBA
+2
+x
+2
+CorinthiansSP CT Evaristo de Macedo*Dias D'ÁvilaBA    
+019226/02qui21:00BotafogoRJ
+2
+x
+1
+AvaíSC Nilton Santos Rio de JaneiroRJ    
+0233ª
+27/02sex
+15:00FlamengoRJ
+3
+x
+1
+VitóriaBAGávea*Rio de JaneiroRJ    
+0283
+27/02sex
+19:00PalmeirasSP
+3
+x
+2
+AthleticoPRBrinco de OuroCampinasSP1   
+0223
+28/02sáb
+15:00JuventudeRS
+2
+x
+1
+CriciúmaSCHomero Soldatelli Flores de CunhaRS    
+0253
+28/02sáb
+15:00FortalezaCE
+0
+x
+0
+CuiabáMT CT Ribamar Bezerra*MaracanaúCE    
+027301/03dom15:00SantosSP
+0
+x
+1
+CruzeiroMGCT Rei Pelé* SantosSP    
+030301/03dom15:00Vasco da GamaRJ
+2
+x
+0
+São PauloSPNivaldo PereiraNova IguaçuRJ    
+021
+02/03seg
+15:00BahiaBA
+2
+x
+1
+FluminenseRJCT Evaristo de Macedo* Dias D'ÁvilaBA    
+026
+02/03seg
+15:00AméricaMG
+0
+x
+0
+BotafogoRJ Arena FrimisaSanta LuziaMG    
+0293
+02/03seg
+15:00AvaíSC
+0
+x
+0
+Red Bull BragantinoSP Ressacada FlorianópolisSC    
+024302/03seg18:00GrêmioRS
+1
+x
+3
+CorinthiansSPAirton Ferreira da Silva Eldorado do SulRS1   
+0394ª01/04
+Qua
+10:00BotafogoRJ
+0
+x
+2
+PalmeirasSPNilton Santos Rio de JaneiroRJ 2  
+03215:00FluminenseRJ
+3
+x
+3
+AvaíSCMarcelo VieiraDuque de CaxiasRJ    
+034401/04
+Qua
+15:00AthleticoPR
+1
+x
+1
+SantosSPCAT do Caju*Curitiba PR    
+035401/04
+Qua
+15:00São PauloSP
+0
+x
+2
+GrêmioRSMarcelo Portugal  CotiaSP    
+03701/04
+Qua
+15:00CorinthiansSP
+0
+x
+1
+FortalezaCEAlfredo SchürigSão PauloSP    
+EMISSÃO  DATAATUALIZAÇÃO
+06/02/202613/08/2026
+                  CONFEDERAÇÃO BRASILEIRA DE FUTEBOL
+     CAMPEONATO BRASILEIRO SÉRIE A SUB-20
+      TABELA DETALHADA / EDIÇÃO 2026
+TURNO
+REFRODDATA - DIAHORAGRJOGO
+CAMPEONATO BRASILEIRO SÉRIE A SUB-20 - TABELA DETALHADA / EDIÇÃO 2026
+PÁG
+01/06
+ESTÁDIOCIDADEUF
+Transmissão
+
+0404ª01/04
+Qua
+15:00ACriciúmaSC
+2
+x
+0
+FlamengoRJCT Antenor Angeloni*CriciúmaSC 2  
+033401/04
+Qua
+16:00CuiabáMT
+0
+x
+2
+AméricaMGCT Manoel Dresch*CuiabáMT    
+03602/04
+Qui
+15:00CruzeiroMG
+3
+x
+1
+Vasco da GamaRJCT Toca da Raposa* Belo HorizonteMG    
+03802/04
+Qui
+15:00Red Bull BragantinoSP
+1
+x
+3
+BahiaBACPD Atibaia AtibaiaSP    
+03102/04
+Qui
+20:00VitóriaBA
+1
+x
+0
+JuventudeRSManoel BarradasSalvadorBA    
+0495ª07/04
+Ter
+19:00BotafogoRJ
+1
+x
+1
+CorinthiansSPNilton Santos Rio de JaneiroRJ1   
+04108/04
+Qua
+15:00BahiaBA
+4
+x
+0
+AvaíSCCT Evaristo de Macedo*Dias D'ÁvilaBA    
+042508/04
+Qua
+15:00JuventudeRS
+1
+x
+3
+AméricaMGMontanha dos Vinhedos Bento GonçalvesRS    
+043508/04
+Qua
+15:00FlamengoRJ
+1
+x
+1
+FortalezaCEGávea*Rio de JaneiroRJ 2  
+044508/04
+Qua
+15:00AthleticoPR
+4
+x
+3
+GrêmioRS CAT do Caju*Curitiba PR    
+045508/04
+Qua
+15:00São PauloSP
+1
+x
+0
+FluminenseRJ Marcelo Portugal CotiaSP    
+046508/04
+Qua
+15:00CruzeiroMG
+3
+x
+0
+CuiabáMTCT Toca da Raposa*Belo HorizonteMG    
+047508/04
+Qua
+15:00SantosSP
+2
+x
+0
+CriciúmaSCCT Rei Pelé* SantosSP    
+048508/04
+Qua
+16:00PalmeirasSP
+3
+x
+2
+Red Bull BragantinoSP Arena Barueri BarueriSP 2  
+050509/04
+Qui
+15:00Vasco da GamaRJ
+6
+x
+1
+VitóriaBA Nivaldo PereiraNova IguaçuRJ    
+0586ª14/04Ter15:00Red Bull BragantinoSP
+3
+x
+3
+CruzeiroMGCPD Atibaia AtibaiaSP    
+053614/04
+Ter
+16:00CuiabáMT
+3
+x
+1
+BotafogoRJCT Manoel Dresch*CuiabáMT    
+05115/04
+Qua
+15:00BahiaBA
+1
+x
+4
+PalmeirasSPCT Evaristo de Macedo* Dias D'ÁvilaBA 2  
+052615/04
+Qua
+15:00FluminenseRJ
+3
+x
+2
+VitóriaBAMarcelo VieiraDuque de CaxiasRJ    
+054615/04
+Qua
+15:00GrêmioRS
+0
+x
+1
+FlamengoRJAirton Ferreira da Silva Eldorado do SulRS 2  
+055615/04
+Qua
+15:00FortalezaCE
+1
+x
+1
+AthleticoPRCT Ribamar Bezerra*MaracanaúCE    
+056615/04
+Qua
+15:00AméricaMG
+1
+x
+0
+CriciúmaSCCastor Cifuentes Nova LimaMG    
+060615/04
+Qua
+15:00Vasco da GamaRJ
+2
+x
+1
+JuventudeRSNivaldo PereiraNova IguaçuRJ    
+059616/04
+Qui
+15:00AvaíSC
+3
+x
+3
+São PauloSPRessacada FlorianópolisSC    
+057616/04
+Qui
+21:30CorinthiansSP
+0
+x
+0
+SantosSPAlfredo SchürigSão PauloSP1   
+0677ª21/04
+Ter
+15:00SantosSP
+3
+x
+1
+CuiabáMTCT Rei Pelé* SantosSP    
+06222/04
+Qua
+15:00JuventudeRS
+1
+x
+3
+GrêmioRSHomero Soldatelli Flores de CunhaRS    
+063722/04
+Qua
+15:00FlamengoRJ
+1
+x
+0
+FluminenseRJGávea*Rio de JaneiroRJ 2  
+064722/04
+Qua
+15:00AthleticoPR
+2
+x
+2
+São PauloSP CAT do CajuCuritiba PR    
+065722/04
+Qua
+15:00FortalezaCE
+1
+x
+1
+AméricaMG Presidente VargasFortalezaCE    
+066722/04
+Qua
+15:00CruzeiroMG
+5
+x
+1
+AvaíSC CT Toca da Raposa*Belo HorizonteMG    
+069722/04
+Qua
+15:00BotafogoRJ
+1
+x
+0
+BahiaBAAniceto MoscosoRio de JaneiroRJ    
+070722/04
+Qua
+15:00CriciúmaSC
+1
+x
+2
+CorinthiansSPCT Antenor Angeloni*CriciúmaSC    
+068722/04
+Qua
+16:00PalmeirasSP
+2
+x
+2
+Vasco da GamaRJ Arena Barueri BarueriSP 2  
+06123/04
+Qui
+17:00VitóriaBA
+2
+x
+5
+Red Bull BragantinoSPManoel BarradasSalvadorBA    
+0748ª25/04
+Sáb
+11:00GrêmioRS
+1
+x
+0
+Vasco da GamaRJAirton Ferreira da Silva Eldorado do SulRS    
+07215:00FluminenseRJ
+2
+x
+0
+CuiabáMTMarcelo VieiraDuque de CaxiasRJ    
+073825/04
+Sáb
+15:00FlamengoRJ
+0
+x
+0
+CruzeiroMGGávea*Rio de JaneiroRJ 2  
+080825/04
+Sáb
+15:00CriciúmaSC
+4
+x
+6
+AvaíSCCT Antenor Angeloni*CriciúmaSC    
+EMISSÃO  DATAATUALIZAÇÃO
+06/02/202613/08/2026
+CAMPEONATO BRASILEIRO SÉRIE A SUB-20 - TABELA DETALHADA / EDIÇÃO 2026
+PÁG
+02/06
+
+0788ª25/04
+Sáb
+16:00APalmeirasSP
+1
+x
+1
+JuventudeRSArena BarueriBarueriSP    
+07126/04
+Dom
+15:00BahiaBA
+1
+x
+1
+VitóriaBACT Evaristo de Macedo* Dias D'ÁvilaBA    
+075826/04
+Dom
+15:00São PauloSP
+0
+x
+1
+CorinthiansSPMarcelo Portugal  CotiaSP 2  
+07626/04
+Dom
+15:00AméricaMG
+3
+x
+2
+AthleticoPRCastor CifuentesNova LimaMG    
+079826/04
+dom
+15:00BotafogoRJ
+2
+x
+1
+FortalezaCEAniceto MoscosoRio de JaneiroRJ    
+07726/04
+Dom
+15:00SantosSP
+0
+x
+4
+Red Bull BragantinoSPCT Rei Pelé* SantosSP    
+0869ª28/04
+Ter
+18:00CruzeiroMG
+0
+x
+1
+PalmeirasSPArena do JacaréSete LagoasMG1   
+082929/04
+Qua
+15:00FluminenseRJ
+0
+x
+2
+SantosSPMarcelo VieiraDuque de CaxiasRJ    
+084929/04
+Qua
+15:00GrêmioRS
+2
+x
+1
+AméricaMGAirton Ferreira da Silva Eldorado do SulRS    
+087929/04
+Qua
+15:00CorinthiansSP
+1
+x
+4
+AthleticoPRAlfredo SchürigSão PauloSP 2  
+0889ª29/04Qua15:00Red Bull BragantinoSP
+4
+x
+2
+CriciúmaSCCPD Atibaia AtibaiaSP    
+089929/04
+Qua
+15:00AvaíSC
+1
+x
+1
+VitóriaBARessacada FlorianópolisSC    
+083929/04
+Qua
+16:00CuiabáMT
+2
+x
+2
+São PauloSPCT Manoel Dresch*CuiabáMT 2  
+090929/04
+Qua
+18:00Vasco da GamaRJ
+1
+x
+0
+BotafogoRJLuso BrasileiroRio de JaneiroRJ1   
+08130/04Qui15:00BahiaBA
+1
+x
+0
+FlamengoRJCT Evaristo de Macedo* Dias D'ÁvilaBA    
+085930/04
+Qui
+18:00FortalezaCE
+1
+x
+1
+JuventudeRSPresidente VargasFortalezaCE    
+09810ª05/05Ter15:00Red Bull BragantinoSP
+2
+x
+0
+FortalezaCECPD Atibaia AtibaiaSP    
+0921006/05
+Qua
+15:00JuventudeRS
+0
+x
+3
+BotafogoRJHomero SoldatelliFlores de CunhaRS    
+0961015:00CruzeiroMG
+5
+x
+2
+GrêmioRS CT Toca da Raposa*Belo HorizonteMG    
+0941006/05
+Qua
+15:00AthleticoPR
+1
+x
+1
+CriciúmaSCCAT do CajuCuritiba PR    
+0951006/05
+Qua
+15:00São PauloSP
+2
+x
+3
+BahiaBAMarcelo Portugal CotiaSP 2  
+0971006/05
+Qua
+15:30CorinthiansSP
+0
+x
+3
+FluminenseRJAlfredo SchürigSão PauloSP 2  
+09106/05
+Qua
+17:00VitóriaBA
+1
+x
+0
+CuiabáMTCT Manoel Barradas*SalvadorBA    
+0991007/05
+Qui
+15:00AvaíSC
+0
+x
+3
+AméricaMGRessacadaFlorianópolisSC    
+0931018:00FlamengoRJ
+1
+x
+3
+PalmeirasSPLuso BrasileiroRio de Janeiro RJ1   
+1001006/05
+Qua
+19:30Vasco da GamaRJ
+3
+x
+1
+SantosSPSão JanuárioRio de JaneiroRJ    
+10111ª12/05
+Ter
+15:00VitóriaBA
+2
+x
+1
+GrêmioRSCT Manoel Barradas*SalvadorBA    
+1081112/05
+ter
+16:00PalmeirasSP
+3
+x
+0
+AvaíSCArena BarueriBarueriSP    
+10213/05
+Qua
+15:00FluminenseRJ
+0
+x
+2
+Vasco da GamaRJMarcelo VieiraDuque de CaxiasRJ   
+1041113/05
+Qua
+15:00AthleticoPR
+3
+x
+1
+Red Bull BragantinoSPCAT do CajuCuritiba PR    
+1051113/05
+Qua
+15:00São PauloSP
+2
+x
+2
+CruzeiroMGMarcelo Portugal  CotiaSP 2  
+1071113/05
+Qua
+15:00SantosSP
+4
+x
+0
+JuventudeRSCT Rei Pelé* SantosSP    
+1091113/05
+Qua
+17:00BotafogoRJ
+3
+x
+1
+FlamengoRJNilton SantosRio de JaneiroRJ 2  
+1101113/05
+Qua
+15:00CriciúmaSC
+1
+x
+2
+FortalezaCECT Antenor Angeloni*CriciúmaSC    
+1031113/05
+Qua
+16:00CuiabáMT
+0
+x
+2
+CorinthiansSPCT Manoel Dresch*CuiabáMT    
+1061114/05
+Qui
+15:00AméricaMG
+2
+x
+2
+BahiaBACastor Cifuentes Nova LimaMG    
+11812ª15/05
+Sex
+16:00APalmeirasSP
+2
+x
+2
+VitóriaBAArena BarueriBarueriSP 2  
+11216/05
+Sáb
+15:00AJuventudeRS
+2
+x
+3
+FlamengoRJHomero Soldatelli Flores de CunhaRS    
+11416/05
+Sáb
+15:00GrêmioRS
+1
+x
+1
+AvaíSCAirton Ferreira da Silva Eldorado do SulRS    
+1151216/05
+Sáb
+15:00FortalezaCE
+1
+x
+2
+SantosSPCT Ribamar Bezerra*MaracanaúCE    
+1171216/05
+Sáb
+15:00CorinthiansSP
+0
+x
+1
+Vasco da GamaRJAlfredo SchürigSão PauloSP 2  
+11916/05
+Sáb
+15:00BotafogoRJ
+3
+x
+1
+CruzeiroMGAniceto MoscosoRio de JaneiroRJ    
+1201216/05
+Sáb
+15:00CriciúmaSC
+2
+x
+0
+FluminenseRJCT Antenor Angeloni*CriciúmaSC    
+1131216/05
+Sáb
+16:00CuiabáMT
+0
+x
+1
+Red Bull BragantinoSPCT Manoel Dresch*CuiabáMT    
+EMISSÃO  DATAATUALIZAÇÃO
+06/02/202613/08/2026
+PÁG
+03/06
+CAMPEONATO BRASILEIRO SÉRIE A SUB-20 - TABELA DETALHADA / EDIÇÃO 2026
+
+11612ª17/05
+Dom
+15:00AAméricaMG
+1
+x
+1
+São PauloSPCastor CifuentesNova LimaMG    
+11118/05
+Seg
+15:00BahiaBA
+1
+x
+2
+AthleticoPRCT Evaristo de Macedo* Dias D'ÁvilaBA    
+12713ª19/05
+Ter
+18:00CorinthiansSP
+0
+x
+1
+PalmeirasSPAlfredo SchürigSão PauloSP1   
+1221320/05
+Qua
+15:00FluminenseRJ
+4
+x
+1
+JuventudeRSMarcelo VieiraDuque de CaxiasRJ    
+1251320/05
+Qua
+15:00São PauloSP
+3
+x
+0
+CriciúmaSCMarcelo Portugal  CotiaSP 2  
+1261320/05
+Qua
+15:00CruzeiroMG
+0
+x
+0
+VitóriaBACT Toca da Raposa*Belo HorizonteBA    
+1291320/05
+Qua
+15:00AvaíSC
+2
+x
+0
+CuiabáMTCT do Avaí* FlorianópolisSC    
+12821/05
+Qui
+15:00Red Bull BragantinoSP
+5
+x
+4
+GrêmioRSCPD Atibaia AtibaiaSP    
+12121/05
+Qui
+15:00BahiaBA
+3
+x
+2
+FortalezaCECT Evaristo de Macedo*Dias D'ÁvilaBA    
+1241321/05
+Qui
+15:00AthleticoPR
+0
+x
+3
+BotafogoRJCAT do CajuCuritiba PR    
+1301320/05
+Qua
+15:00Vasco da GamaRJ
+4
+x
+0
+AméricaMGNivaldo PereiraNova IguaçuRJ 2  
+1231321/05
+Qui
+21:30FlamengoRJ
+2
+x
+1
+SantosSPLuso BrasileiroRio de JaneiroRJ1   
+13214ª26/05
+Ter
+15:00FluminenseRJ
+0
+x
+2
+CruzeiroMGMarcelo VieiraDuque de CaxiasRJ    
+1391427/05
+Qua
+11:00AvaíSC
+1
+x
+0
+Vasco da GamaRJCT do Avaí* FlorianópolisSC    
+1341415:00AthleticoPR
+6
+x
+1
+JuventudeRSCAT do CajuCuritiba PR    
+1351427/05
+Qua
+15:00FortalezaCE
+1
+x
+2
+PalmeirasSPCT Ribamar Bezerra*MaracanaúCE    
+1361427/05
+Qua
+15:00AméricaMG
+1
+x
+1
+FlamengoRJCastor Cifuentes Nova LimaMG 2  
+1371427/05
+Qua
+15:00SantosSP
+1
+x
+1
+BotafogoRJCT Rei Pelé* SantosSP    
+1401427/05
+Qua
+15:00CriciúmaSC
+1
+x
+1
+BahiaBACT Antenor Angeloni*CriciúmaSC    
+1331427/05
+Qua
+16:00CuiabáMT
+2
+x
+0
+GrêmioRSCT Manoel Dresch*CuiabáMT    
+13127/05
+Qua
+15:00VitóriaBA
+0
+x
+1
+São PauloSPCT Manoel Barradas*SalvadorBA    
+13828/05Qui15:00Red Bull BragantinoSP
+3
+x
+3
+CorinthiansSPCPD Atibaia AtibaiaSP 2  
+14315ª
+09/06Ter
+15:00FlamengoRJ
+1
+x
+0
+AthleticoPRGávea*Rio de JaneiroRJ 2  
+141
+10/06Qua
+15:00VitóriaBA
+0
+x
+1
+AméricaMGCT Manoel Barradas*SalvadorBA    
+14215
+10/06qua
+15:00JuventudeRS
+3
+x
+1
+BahiaBACFAC Juventude*Caxias do SulRS    
+14415
+10/06qua
+15:00GrêmioRS
+0
+x
+3
+FluminenseRJAirton Ferreira da SilvaEldorado do SulRS    
+1471510/06qua15:00CorinthiansSP
+6
+x
+2
+AvaíSCAlfredo Schürig*São PauloSP    
+1491510/06qua15:00BotafogoRJ
+2
+x
+0
+CriciúmaSCNilton SantosRio de JaneiroRJ    
+1451511/06 qui15:00São PauloSP
+0
+x
+2
+Red Bull BragantinoSPMarcelo Portugal CotiaSP    
+1461511/06 ter15:00CruzeiroMG
+3
+x
+2
+FortalezaCECT Toca da Raposa*Belo HorizonteMG    
+1501510/06qua15:00Vasco da GamaRJ
+2
+x
+1
+CuiabáMTNivaldo PereiraNova IguaçuRJ    
+1481511/06 ter19:00PalmeirasSP
+2
+x
+2
+SantosSPArena BarueriBarueriSP 2  
+16016ª
+16/06Ter
+15:00CriciúmaSC
+0
+x
+6
+PalmeirasSPCT Antenor Angeloni*CriciúmaSC2  
+15416
+17/06qua
+15:00AthleticoPR
+3
+x
+0
+CruzeiroMGCAT do CajuCuritiba PR    
+15616
+17/06qua
+15:00AméricaMG
+1
+x
+3
+SantosSPArena IndependênciaBelo HorizonteMG    
+151
+17/06Qua
+15:00BahiaBA
+1
+x
+1
+Vasco da GamaRJCT Evaristo de Macedo*Dias D'ÁvilaBA    
+15216
+17/06qua
+15:00JuventudeRS
+1
+x
+0
+São PauloSPCFAC Juventude*Caxias do SulRS    
+15316
+17/06qua
+15:00FlamengoRJ
+1
+x
+1
+CuiabáMTGávea*Rio de JaneiroRJ 2  
+15516
+17/06qua
+15:00FortalezaCE
+0
+x
+0
+AvaíSCCT Ribamar Bezerra*MaracanaúCE    
+15716
+17/06qua
+15:00CorinthiansSP
+2
+x
+1
+VitóriaBAAlfredo Schürig*São PauloSP    
+15916
+17/06qua
+15:00BotafogoRJ
+1
+x
+0
+GrêmioRSNilton SantosRio de JaneiroRJ    
+158
+17/06qua
+19:00Red Bull BragantinoSP
+3
+x
+0
+FluminenseRJBrinco de OuroCampinasSP    
+EMISSÃO  DATAATUALIZAÇÃO
+06/02/202613/08/2026
+CAMPEONATO BRASILEIRO SÉRIE A SUB-20 - TABELA DETALHADA / EDIÇÃO 2026
+PÁG
+04/06
+
+16917ª20/06Sáb11:00AvaíSC
+1
+x
+3
+JuventudeRSCT do Avaí*FlorianópolisSC    
+16115:00VitóriaBA
+2
+x
+0
+BotafogoRJCT Manoel Barradas*SalvadorBA    
+162
+20/06sáb
+15:00FluminenseRJ
+0
+x
+0
+AthleticoPRMarcelo VieiraDuque de CaxiasRJ    
+1641720/06sáb15:00GrêmioRS
+2
+x
+1
+FortalezaCEAirton Ferreira da SilvaEldorado do SulRS    
+1651720/06sáb15:00São PauloSP
+1
+x
+1
+FlamengoRJMarcelo Portugal CotiaSP 2  
+1661720/06sáb15:00CruzeiroMG
+1
+x
+2
+CorinthiansSPCT Toca da Raposa*Belo HorizonteMG 2  
+1671720/06sáb15:00SantosSP
+0
+x
+2
+BahiaBACT Rei Pelé*SantosSP    
+1701720/06sáb15:00Vasco da GamaRJ
+0
+x
+1
+Red Bull BragantinoSPNivaldo PereiraNova IguaçuRJ    
+16317
+20/06sáb
+16:00CuiabáMT
+2
+x
+1
+CriciúmaSCCT Manoel Dresch*CuiabáMT    
+1681720/06sáb16:00PalmeirasSP
+7
+x
+1
+AméricaMGArena BarueriBarueriSP    
+17118ª23/06Ter15:00VitóriaBA
+1
+x
+2
+SantosSPCT Manoel Barradas*SalvadorBA    
+1741823/06ter15:00GrêmioRS
+4
+x
+0
+BahiaBAAirton Ferreira da SilvaEldorado do SulRS    
+1751823/06ter15:00São PauloSP
+1
+x
+0
+FortalezaCEMarcelo Portugal CotiaSP    
+1761823/06ter15:00CruzeiroMG
+2
+x
+2
+AméricaMGCT Toca da Raposa*Belo HorizonteMG    
+1731823/06ter16:00CuiabáMT
+2
+x
+0
+JuventudeRSCT Manoel Dresch*CuiabáMT    
+17924/06Qua11:00AvaíSC
+0
+x
+2
+AthleticoPRCT do Avaí*FlorianópolisSC    
+1721825/06Qui15:00FluminenseRJ
+0
+x
+3
+PalmeirasSPMarcelo VieiraDuque de CaxiasRJ 2  
+1771825/06qui15:00CorinthiansSP
+2
+x
+2
+FlamengoRJAlfredo Schürig*São PauloSP 2  
+17823/06ter15:00Red Bull BragantinoSP
+2
+x
+5
+BotafogoRJCPD AtibaiaAtibaiaSP    
+1801825/06qui15:00Vasco da GamaRJ
+1
+x
+2
+CriciúmaSCNivaldo PereiraNova IguaçuRJ    
+18119ª
+01/07Qua
+15:00BahiaBA
+3
+x
+1
+CruzeiroMGCT Evaristo de Macedo*Dias D'ÁvilaBA    
+18219
+01/07qua
+15:00JuventudeRS
+1
+x
+0
+CorinthiansSPCFAC Juventude*Caxias do SulRS    
+18319
+01/07qua
+15:00FlamengoRJ
+2
+x
+2
+AvaíSCCT George Helal*Rio de JaneiroRJ    
+1841901/07qua15:00AthleticoPR
+2
+x
+0
+VitóriaBACAT do CajuCuritiba PR    
+1851901/07qua15:00FortalezaCE
+1
+x
+1
+Vasco da GamaRJCT Ribamar Bezerra*MaracanaúCE    
+1861901/07qua15:00AméricaMG
+0
+x
+5
+Red Bull BragantinoSPArena Urbsan*BetimMG    
+1871901/07qua15:00SantosSP
+0
+x
+3
+São PauloSPCT Rei Pelé*SantosSP    
+1881901/07qua15:00PalmeirasSP
+1
+x
+3
+CuiabáMTArena BarueriBarueriSP    
+1891901/07qua15:00BotafogoRJ
+3
+x
+2
+FluminenseRJNilton SantosRio de JaneiroRJ    
+1901901/07qua15:00CriciúmaSC
+3
+x
+2
+GrêmioRSCT Antenor Angeloni*CriciúmaSC    
+1234
+191I08/07qua15:00BCorinthiansSP
+0
+x
+1
+PalmeirasSPAlfredo Schürig*São Paulo SP 2  
+1921ª 15:00CAthleticoPR
+0
+x
+1
+Red Bull BragantinoSPCAT do Caju CuritibaPR    
+1931ª 15:00DCruzeiroMG
+1
+x
+0
+Vasco da GamaRJCT Toca da Raposa*Belo HorizonteMG 2  
+1941ª15:00ESantosSP
+4
+x
+1
+BotafogoRJCT Rei Pelé*SantosSP    
+197V14/07ter15:00DVasco da GamaRJ
+2
+x
+0
+CruzeiroMGSão JanuarioRio de JaneiroRJ 2  
+19615/07qua21:00CRed Bull BragantinoSP
+3
+x
+1
+AthleticoPRCPD AtibaiaAtibaiaSP    
+1982ª15/07qua21:00EBotafogoRJ
+1
+x
+0
+SantosSPNilton SantosRio de JaneiroRJ    
+19516/07qui16:00BPalmeirasSP
+3
+x
+1
+CorinthiansSPArena Barueri BarueriSP 2  
+EMISSÃO  DATAATUALIZAÇÃO
+06/02/202613/08/2026
+CAMPEONATO BRASILEIRO SÉRIE A SUB-20 - TABELA DETALHADA / EDIÇÃO 2026
+PÁG
+05/06
+SEGUNDA FASE
+REFROD
+DATA - DIA
+HORAJOGOESTÁDIOCIDADEUF
+Transmissão
+(QUARTAS DE FINAL)
+
+1234
+200I22/07qua16:00GSantosSP
+2
+x
+0
+Vasco da GamaRJVila BelmiroSantosSP1   
+19923/07qui16:00FRed Bull BragantinoSP
+3
+x
+3
+PalmeirasSPCícero S. MarquesBragança PaulistaSP12  
+201V30/07qui16:00FPalmeirasSP
+2
+x
+0
+Red Bull BragantinoSPArena BarueriBarueriSP12 
+202I18:30GVasco da GamaRJ
+(5) 2
+x
+0 (4) 
+SantosSPSão JanuárioRio de JaneiroRJ1 
+1234
+203I28/08sex18:00HVasco da GamaRJ
+ 
+x
+ 
+PalmeirasSPSão JanuárioRio de JaneiroRJ12  
+204V04/09sex19:00HPalmeirasSP
+ 
+x
+ 
+Vasco da GamaRJNubank ParqueSão PauloSP12  
+OBSERVAÇÕES
+1)
+2)
+3)
+4)
+5)
+6)
+7)
+DATAS DAS FASES:
+ 
+EMISSÃO  DATAATUALIZAÇÃO
+06/02/202613/08/2026
+CAMPEONATO BRASILEIRO SÉRIE A SUB-20 - TABELA DETALHADA / EDIÇÃO 2026
+PÁG
+06/06
+Rio de Janeiro, 06 de fevereiro 2026
+Julio Avellar
+Diretor de Competições
+Número de Referência do Jogo
+Indicação de Transmissão
+Os horários a serem divulgados na Tabela Detalhada referem-se ao Horário de Brasília.
+I/V -Ida e Volta
+REF -
+ROD -Rodada
+4ª Fase (Final): 26/08 e 02/09 (02 datas)
+1ª Fase: 22/02 a 01/07 (19 datas)
+2ª Fase: 08/07 e 15/07 (02 datas)
+A partir da Tabela Básica a TV faz a escolha dos jogos a serem distribuídos nos dias e horários usuais da competição. A tabela assim elaborada é identificada como 
+Tabela Detalhada que representa a programação oficial dos jogos quanto a dias e horários. 
+Os horários dos jogos são ajustados em conjunto com a detentora, em função da sua grade de programação.
+LEGENDA
+CIDADEUF
+Transmissão
+TERCEIRA FASE
+REFROD
+DATA - DIA
+HORAJOGOESTÁDIO
+(SEMIFINAL)
+QUARTA FASE 
+(FINAL)
+REFI/V
+DATA - DIA
+HORAJOGOESTÁDIOCIDADEUF
+Transmissão
+Coluna 1 - Sportv
+A Tabela Básica não corresponde a programação definitiva dos jogos quanto a dias e horários, informando apenas os jogos de cada rodada, com suas datas-base.
+3ª Fase (Semifinal): 22/07 e 29/07 (02 datas)
+UF -Estado
+TV -
+GR -Grupo
+Coluna 2 - UOL
+Todos os estádios a serem designados estão sujeitos a inspeção prévia, o que poderá acarretar mudanças de locais.
+Quaisquer estádios poderão ser substituídos na hipótese da falta dos laudos técnicos exigidos pela Lei Geral do Esporte.
+Todas as partidas com estádios com * (asterisco), decorrem de pendências na apresentação dos laudos técnicos exigidos pela CBF no Manual de Competições, 
+REC e previstos na legislação vigente. Em caso de não apresentação dos laudos pendentes em até 72 horas da data prevista para a realização da partida, a CBF 
+poderá alterar o local e data da partida, ou determinar que seja realizada com portões fechados.

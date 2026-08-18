@@ -1,0 +1,26 @@
+{
+  "Codigo": 0,
+  "Sucesso": true,
+  "Mensagem": "",
+  "Retorno": {
+    "IdAtleta": 504484,
+    "IdClube": 3309,
+    "Nome": "Gabriel Marques Vieira Mota dos Santos",
+    "Apelido": "Gabriel",
+    "Sexo": "M",
+    "DataNascimento": "12/08/2010",
+    "Anos": 16,
+    "Nacionalidade": "Brasileira                    ",
+    "DataInicioContrato": "29/03/2026",
+    "DataTerminoContrato": "27/03/2029",
+    "Imagem": "https://conteudo.fpf.org.br/Pessoas/564846/DOCUMENTOS/foto/63acdb3a-8951-40a7-a5c2-befa10fa19ee.jpeg",
+    "Registro": "656616",
+    "NomeOficial": "Olímpia Futebol Clube",
+    "NomePopular": "Olímpia",
+    "Escudo": "https://api.fpf.org.br/filiacao/v1/entidades/CLUBE/3309/escudo?v=8589af8c-e065-45e3-be79-9305d1df375a",
+    "listAnos": [{ "Exercicio": "2026" }, { "Exercicio": "2025" }, { "Exercicio": "2024" }]
+  },
+  "Pagination": false,
+  "PageSize": 0,
+  "Total": 0
+}

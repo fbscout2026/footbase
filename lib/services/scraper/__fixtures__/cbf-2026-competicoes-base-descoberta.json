@@ -1,0 +1,54 @@
+{
+  "descricao": "Descoberta ao vivo (Session 40): competições nacionais de base da CBF ativas em 2026, com o link real do documento 'Tabela Detalhada' (PDF, temporada inteira, hospedado fora do Next.js — sem Cloudflare, fetch simples funciona). O parser jogo-a-jogo desse PDF (lib/services/scraper/parse-cbf-tabela-detalhada.ts) já foi escrito e testado com uma amostra real (SUB-20 Série A, 75/77 linhas datadas parseadas corretamente — as 2 restantes são finais futuras sem placar ainda). NÃO confirmado ainda: se o campo 'jogo' desse PDF é o mesmo 'código' usado na URL da súmula (conteudo.cbf.com.br/sumulas/{ano}/{código}se.pdf) — isso precisa de verificação ao vivo antes de virar um índice de súmulas de verdade.",
+  "competicoesAtivas2026": [
+    {
+      "competicao": "Campeonato Brasileiro",
+      "categoria": "SUB-20 Série A",
+      "urlTabela": "https://www.cbf.com.br/futebol-brasileiro/tabelas/campeonato-brasileiro/sub-20/2026",
+      "tabelaDetalhadaPdf": "https://stcbfsiteprdimgbrs.blob.core.windows.net/img-site/cdn/TABELA_DETALHADA_BRASILEIRO_MASCULINO_SERIE_A_SUB_20_13_08_be7bf7dd62.pdf"
+    },
+    {
+      "competicao": "Campeonato Brasileiro",
+      "categoria": "SUB-17",
+      "urlTabela": "https://www.cbf.com.br/futebol-brasileiro/tabelas/campeonato-brasileiro/sub-17/2026",
+      "tabelaDetalhadaPdf": "https://stcbfsiteprdimgbrs.blob.core.windows.net/img-site/cdn/TABELA_DETALHADA_CAMPEONATO_BRASILEIRO_MASCULINO_SUB_17_2026_14_08_22407b190a.pdf"
+    },
+    {
+      "competicao": "Campeonato Brasileiro",
+      "categoria": "SUB-20 Série B",
+      "urlTabela": "https://www.cbf.com.br/futebol-brasileiro/tabelas/campeonato-brasileiro/sub-20-b/2026",
+      "tabelaDetalhadaPdf": "https://stcbfsiteprdimgbrs.blob.core.windows.net/img-site/cdn/TABELA_DETALHADA_BRASILEIRO_MASCULINO_SERIE_B_SUB_20_11_08_e13932460a.pdf"
+    },
+    {
+      "competicao": "Copa do Brasil",
+      "categoria": "SUB-17",
+      "urlTabela": "https://www.cbf.com.br/futebol-brasileiro/tabelas/copa-do-brasil/sub-17/2026",
+      "tabelaDetalhadaPdf": "https://stcbfsiteprdimgbrs.blob.core.windows.net/img-site/cdn/TABELA_DETALHADA_COPA_DO_BRASIL_MASCULINA_SUB_17_2026_27_05_fc5bfb2244.pdf"
+    },
+    {
+      "competicao": "Copa do Brasil",
+      "categoria": "SUB-15",
+      "urlTabela": "https://www.cbf.com.br/futebol-brasileiro/tabelas/copa-do-brasil/sub-15/2026",
+      "tabelaDetalhadaPdf": "https://stcbfsiteprdimgbrs.blob.core.windows.net/img-site/cdn/TABELA_DETALHADA_COPA_DO_BRASIL_MASCULINA_SUB_15_2026_30_07_a421a96446.pdf"
+    },
+    {
+      "competicao": "Copa do Nordeste",
+      "categoria": "SUB-20",
+      "urlTabela": "https://www.cbf.com.br/futebol-brasileiro/tabelas/copa-do-nordeste/sub-20/2026",
+      "tabelaDetalhadaPdf": "https://stcbfsiteprdimgbrs.blob.core.windows.net/img-site/cdn/TABELA_DETALHADA_COPA_DO_NORDESTE_SUB_20_2026_14_08_a3ec24245d.pdf"
+    },
+    {
+      "competicao": "Liga de Desenvolvimento CBF Transforma",
+      "categoria": "SUB-13 Masculino",
+      "urlTabela": "https://www.cbf.com.br/futebol-brasileiro/tabelas/liga-de-desenvolvimento/masculino-sub-13/2026",
+      "tabelaDetalhadaPdf": "https://stcbfsiteprdimgbrs.blob.core.windows.net/img-site/cdn/Tabela_Detalhada_Liga_de_Desenvolvimento_CBF_Transforma_Masculino_Sub_13_202_82c545e042.pdf"
+    }
+  ],
+  "competicoesSemEdicao2026Confirmada": [
+    { "competicao": "Copa do Brasil", "categoria": "SUB-20", "observacao": "URL sem ano redirecionou para a edição de 2025 — 2026 ainda não começou ou não tem documento publicado" },
+    { "competicao": "Supercopa do Brasil", "categoria": "SUB-20", "observacao": "URL sem ano redirecionou para 2021 — parece descontinuada/infrequente" },
+    { "competicao": "Supercopa do Brasil", "categoria": "SUB-17", "observacao": "URL sem ano redirecionou para 2020 — parece descontinuada/infrequente" }
+  ],
+  "categoriasNaoEncontradasNoNivelNacional": ["SUB-11", "SUB-12", "SUB-14", "SUB-16", "SUB-18", "SUB-19"],
+  "observacaoImportante": "Isso confirma o que o CLAUDE.md já registrava: a CBF nacional roda só um subconjunto de categorias (majoritariamente ímpares + SUB-20); as categorias pares e as faltantes ficam a cargo das federações estaduais (ex.: FPF cobre SUB-11 a SUB-20 completo)."
+}

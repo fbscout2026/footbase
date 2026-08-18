@@ -1,0 +1,26 @@
+{
+  "Codigo": 0,
+  "Sucesso": true,
+  "Mensagem": "",
+  "Retorno": {
+    "IdAtleta": 530973,
+    "IdClube": 3307,
+    "Nome": "Alex dos Santos Oliveira",
+    "Apelido": "Alex",
+    "Sexo": "M",
+    "DataNascimento": "01/03/2012",
+    "Anos": 14,
+    "Nacionalidade": "Brasileira                    ",
+    "DataInicioContrato": "27/04/2026",
+    "DataTerminoContrato": "31/12/2027",
+    "Imagem": "https://conteudo.fpf.org.br/Pessoas/627034/DOCUMENTOS/foto/84def250-4ecb-4588-97ba-15261d7f40c6.jpg",
+    "Registro": "662100",
+    "NomeOficial": "Osasco Sporting",
+    "NomePopular": "Osasco Sporting",
+    "Escudo": "https://api.fpf.org.br/filiacao/v1/entidades/CLUBE/3307/escudo?v=cbc45fd4-a7b5-4b9c-9ee1-0b04285cfc80",
+    "listAnos": [{ "Exercicio": "2026" }]
+  },
+  "Pagination": false,
+  "PageSize": 0,
+  "Total": 0
+}
