@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Confederacao, Federacao, Pais, TorneioSummary } from "@/lib/torneios-filter-rules";
+import { computeStandings, computeTopScorers, type ScorerRow, type StandingRow } from "@/lib/torneio-standings";
 
 export interface TorneioExplorerData {
   confederacoes: Confederacao[];
@@ -12,6 +13,9 @@ export interface TorneioDetail extends TorneioSummary {
   federacaoNome: string | null;
   paisNome: string | null;
   continente: string | null;
+  standings: StandingRow[];
+  topScorers: ScorerRow[];
+  matchCount: number;
 }
 
 function one<T>(rel: T | T[] | null): T | null {
@@ -70,5 +74,57 @@ export async function loadTorneioDetail(client: SupabaseClient, id: string): Pro
     federacaoNome: fed?.nome ?? null,
     paisNome: pais?.nome ?? null,
     continente: conf?.continente ?? null,
+    ...(await loadTorneioStandingsAndScorers(client, id)),
   };
+}
+
+/** Classificação + artilharia computed from real ingested matches
+ * (`partidas_sumula`/`atuacoes_sumula`) — pure calculation lives in
+ * `lib/torneio-standings.ts`; this is only the fetch + shape-into-input side. */
+async function loadTorneioStandingsAndScorers(
+  client: SupabaseClient,
+  torneioId: string,
+): Promise<{ standings: StandingRow[]; topScorers: ScorerRow[]; matchCount: number }> {
+  const { data: matches, error: matchesErr } = await client
+    .from("partidas_sumula")
+    .select("id,home_club_id,away_club_id,home_score,away_score")
+    .eq("torneio_id", torneioId);
+  if (matchesErr) throw matchesErr;
+  const rows = matches ?? [];
+
+  const clubIds = [...new Set(rows.flatMap((m) => [m.home_club_id, m.away_club_id]).filter((v): v is string => !!v))];
+  const partidaIds = rows.map((m) => m.id);
+
+  const [clubsRes, appearancesRes] = await Promise.all([
+    clubIds.length
+      ? client.from("clubes").select("id,name,webp_crest_url").in("id", clubIds)
+      : Promise.resolve({ data: [], error: null }),
+    partidaIds.length
+      ? client.from("atuacoes_sumula").select("bid_atleta,goals,atletas(name)").in("partida_id", partidaIds).gt("goals", 0)
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+  if (clubsRes.error) throw clubsRes.error;
+  if (appearancesRes.error) throw appearancesRes.error;
+
+  const clubMap = new Map((clubsRes.data ?? []).map((c) => [String(c.id), { id: String(c.id), name: c.name, crestUrl: c.webp_crest_url }]));
+
+  const standings = computeStandings(
+    rows.map((m) => ({
+      homeClubId: String(m.home_club_id ?? ""),
+      awayClubId: String(m.away_club_id ?? ""),
+      homeScore: m.home_score,
+      awayScore: m.away_score,
+    })),
+    clubMap,
+  );
+
+  const topScorers = computeTopScorers(
+    (appearancesRes.data ?? []).map((a) => ({
+      bid: Number(a.bid_atleta),
+      name: one<{ name?: string }>(a.atletas as never)?.name ?? String(a.bid_atleta),
+      goals: a.goals,
+    })),
+  ).slice(0, 10);
+
+  return { standings, topScorers, matchCount: rows.filter((m) => m.home_score != null && m.away_score != null).length };
 }
