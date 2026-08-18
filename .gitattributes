@@ -1,0 +1,4 @@
+# Force LF regardless of the checking-out OS — a shell script with CRLF line endings
+# fails on Linux ("bad interpreter: ... $'\r'"), and this repo is developed on Windows
+# but deployed to a Linux VPS (Contabo).
+*.sh text eol=lf
