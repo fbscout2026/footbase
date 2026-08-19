@@ -53,6 +53,47 @@ as $$
   select rank from categoria_ordem where categoria = cat;
 $$;
 
+-- Recomputes one athlete's precomputed stat columns (Session 55) from the
+-- ground truth in atuacoes_sumula/partidas_sumula. Idempotent — safe to call
+-- any number of times for the same bid (e.g. a reprocessed/corrected match).
+-- Called by the ingestion pipeline once per affected athlete right after
+-- appearances are upserted (see lib/services/scraper/ingest.ts).
+create or replace function recompute_atleta_stats(p_bid bigint)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  update atletas a set
+    total_matches = coalesce(stats.total_matches, 0),
+    total_minutes = coalesce(stats.total_minutes, 0),
+    total_goals = coalesce(stats.total_goals, 0),
+    total_assists = coalesce(stats.total_assists, 0),
+    total_yellow_cards = coalesce(stats.total_yellow_cards, 0),
+    total_red_cards = coalesce(stats.total_red_cards, 0),
+    total_clean_sheets = coalesce(stats.total_clean_sheets, 0),
+    times_played_above_category = coalesce(stats.times_played_above_category, 0),
+    last_match_date = stats.last_match_date
+  from (
+    select
+      count(*)::int as total_matches,
+      coalesce(sum(s.minutes_played), 0)::int as total_minutes,
+      coalesce(sum(s.goals), 0)::int as total_goals,
+      coalesce(sum(s.assists), 0)::int as total_assists,
+      coalesce(sum(s.yellow_cards), 0)::int as total_yellow_cards,
+      coalesce(sum(s.red_cards), 0)::int as total_red_cards,
+      coalesce(sum(s.clean_sheet::int), 0)::int as total_clean_sheets,
+      coalesce(sum((categoria_rank(p.match_category) > categoria_rank(s.player_category))::int), 0)::int as times_played_above_category,
+      max(p.match_date) as last_match_date
+    from atuacoes_sumula s
+    join partidas_sumula p on p.id = s.partida_id
+    where s.bid_atleta = p_bid
+  ) stats
+  where a.bid = p_bid;
+end;
+$$;
+
 -- ----------------------------------------------------------------------------
 -- profiles (account-level approval gate, 1:1 with auth.users)
 -- ----------------------------------------------------------------------------
@@ -295,6 +336,19 @@ create table if not exists atletas (
   agent_id uuid references agentes (id) on delete set null,
   claim_status text not null default 'unclaimed' check (claim_status in ('unclaimed', 'pending', 'claimed')),
   youtube_video_url text,                -- unlisted highlight video (agent-editable)
+  -- Precomputed stats (Session 55): kept fresh by `recompute_atleta_stats()`,
+  -- called once per athlete right after ingestion writes their appearances.
+  -- Replaces a live per-row LATERAL aggregate in `view_atleta_resumo` that hit
+  -- Postgres statement timeouts once atuacoes_sumula grew past ~30k rows.
+  total_matches integer not null default 0,
+  total_minutes integer not null default 0,
+  total_goals integer not null default 0,
+  total_assists integer not null default 0,
+  total_yellow_cards integer not null default 0,
+  total_red_cards integer not null default 0,
+  total_clean_sheets integer not null default 0,
+  times_played_above_category integer not null default 0,
+  last_match_date date,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -308,6 +362,8 @@ create index if not exists idx_atletas_birth_date on atletas (birth_date);
 create index if not exists idx_atletas_nacionalidade on atletas (nacionalidade);
 create index if not exists idx_atletas_position on atletas (main_position);
 create index if not exists idx_atletas_name_trgm on atletas using gin (name gin_trgm_ops);
+create index if not exists idx_atletas_total_goals on atletas (total_goals);
+create index if not exists idx_atletas_last_match_date on atletas (last_match_date);
 
 drop trigger if exists trg_atletas_updated_at on atletas;
 create trigger trg_atletas_updated_at
@@ -1381,35 +1437,20 @@ select
   a.agent_id,
   a.claim_status,
   a.youtube_video_url,
-  stats.total_matches,
-  stats.total_minutes,
-  stats.total_goals,
-  stats.total_assists,
-  (stats.total_goals + stats.total_assists) as participacoes_gol,
-  stats.total_yellow_cards,
-  stats.total_red_cards,
-  stats.total_clean_sheets,
-  stats.times_played_above_category,
-  (stats.times_played_above_category > 0) as ja_jogou_categoria_acima,
-  stats.last_match_date,
-  (stats.last_match_date is null or stats.last_match_date < current_date - interval '30 days') as is_inactive_30d
+  a.total_matches,
+  a.total_minutes,
+  a.total_goals,
+  a.total_assists,
+  (a.total_goals + a.total_assists) as participacoes_gol,
+  a.total_yellow_cards,
+  a.total_red_cards,
+  a.total_clean_sheets,
+  a.times_played_above_category,
+  (a.times_played_above_category > 0) as ja_jogou_categoria_acima,
+  a.last_match_date,
+  (a.last_match_date is null or a.last_match_date < current_date - interval '30 days') as is_inactive_30d
 from atletas a
-left join clubes c on c.id = a.current_club_id
-left join lateral (
-  select
-    count(*)::int as total_matches,
-    coalesce(sum(s.minutes_played), 0)::int as total_minutes,
-    coalesce(sum(s.goals), 0)::int as total_goals,
-    coalesce(sum(s.assists), 0)::int as total_assists,
-    coalesce(sum(s.yellow_cards), 0)::int as total_yellow_cards,
-    coalesce(sum(s.red_cards), 0)::int as total_red_cards,
-    coalesce(sum(s.clean_sheet::int), 0)::int as total_clean_sheets,
-    coalesce(sum((categoria_rank(p.match_category) > categoria_rank(s.player_category))::int), 0)::int as times_played_above_category,
-    max(p.match_date) as last_match_date
-  from atuacoes_sumula s
-  join partidas_sumula p on p.id = s.partida_id
-  where s.bid_atleta = a.bid
-) stats on true;
+left join clubes c on c.id = a.current_club_id;
 
 -- ============================================================================
 -- view_clube_resumo — seed-profile summary (squad + active categories/tourneys)

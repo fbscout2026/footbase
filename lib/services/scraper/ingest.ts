@@ -205,6 +205,15 @@ export async function ingestMatch(admin: SupabaseClient, parsed: ParsedMatch, op
       const ins = await admin.from("atuacoes_sumula").upsert(rows, { onConflict: "partida_id,bid_atleta" }).select("id");
       if (ins.error) throw ins.error;
       report.appearancesUpserted = rows.length;
+
+      // Keep the precomputed stat columns on `atletas` fresh (Session 55):
+      // `view_atleta_resumo` reads these directly now instead of a live
+      // per-row LATERAL aggregate, which started hitting Postgres statement
+      // timeouts on the dashboard once atuacoes_sumula grew past ~30k rows.
+      for (const bid of new Set(rows.map((r) => r.bid_atleta))) {
+        const { error: statsErr } = await admin.rpc("recompute_atleta_stats", { p_bid: bid });
+        if (statsErr) report.errors.push(`stats recompute failed for bid ${bid}: ${statsErr.message}`);
+      }
     }
 
     // Keep `atletas.current_club_id`/`current_category` up to date from this match's
