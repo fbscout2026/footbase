@@ -18,10 +18,18 @@ export async function extractPdfText(bytes: Uint8Array | ArrayBuffer): Promise<s
   return parsed.text;
 }
 
+// Confirmed live (Session 54): a request to a source's server can stall with the
+// connection never closing — plain `fetch()` has no default timeout, so without one
+// the whole executor hangs forever on a single súmula, silently stopping every
+// source behind it in the run (the CBF/FMF/FERJ discovery `fetchText` helpers share
+// this exact risk and should get the same treatment if it recurs there).
+const FETCH_TIMEOUT_MS = 30_000;
+
 /** Fetch a súmula PDF by URL and return its text layer. Bytes are not persisted. */
 export async function fetchSumulaText(url: string): Promise<string> {
   const res = await fetch(url, {
     headers: { "user-agent": "FOOTBASE-ingestion/6.2 (+https://footbase.dev)" },
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
   });
   if (!res.ok) throw new Error(`súmula fetch failed: ${res.status} ${res.statusText} for ${url}`);
   const bytes = await res.arrayBuffer();

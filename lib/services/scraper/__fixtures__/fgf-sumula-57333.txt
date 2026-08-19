@@ -1,0 +1,144 @@
+
+
+Jogo: 109
+FEDERACAO GAUCHA DE FUTEBOL
+SÚMULA ON-LINE
+Campeonato:Estadual Sub 15 - Não Profissional/2026Rodada:1
+Jogo:Passo Fundo / RS X Juventude / RS
+Data:15/08/2026Horário:15:00Estádio:Vermelhão da Serra / Passo Fundo
+Arbitragem
+Árbitro:Marlon Moreira (FD/RS)
+Assistente 1:Adriano Rosa Da Silva (FD/RS)
+Assistente 2:Tiago Gai Simoes (FD/RS)
+Cronologia
+1º Tempo
+Entrada do mandante:14:55     Atraso:Não Houve
+Entrada do visitante: 14:55     Atraso:Não Houve
+Início 1º Tempo: 15:00     Atraso:Não Houve
+Término do 1º Tempo:15:38     Acréscimo:3 min
+2º Tempo
+Entrada do mandante:15:51     Atraso:Não Houve
+Entrada do visitante:15:51     Atraso:Não Houve
+Início do 2º Tempo:15:53     Atraso:Não Houve
+Término do 2º Tempo:16:35     Acréscimo:7 min
+Resultado do 1º Tempo: 2 X 1     Resultado Final: 2 X 1      
+Relação de Jogadores
+Passo Fundo / RS
+NºApelidoNome CompletoT/RP/ACBF
+1RafaelRafael Luiz TormenT(g)A930206
+2Luís GustavoLuís Gustavo da RosaTA966217
+3VitorVitor Eduardo Marcol ...TA897174
+4Eduardo Ol ...Eduardo Oliveira da  ...TA921560
+5LorenzoLorenzo Bianchi Fino ...TA903991
+6YanYan Prestes Cararo d ...TA879658
+7HenriqueHenrique Schuster Si ...TA875466
+8BrenoBreno Rodrigues de S ...TA803985
+9PedroPedro Ghiggi RicciTA797651
+10BernardoBernardo Martins Goe ...TA908922
+11VicenteVicente Bilibio Goec ...TA929959
+12GUILHERMEGuilherme Augusto Sa ...R(g)A915312
+14BedinLuiz Otávio BedinRA965558
+15GuimarãesBernardo GuimarãesRA883527
+16RuanRuan Gustavo PazRA965317
+17BrunoBruno Loss TagliariRA887440
+18BenjaminBenjamin da Silva Me ...RA860606
+19BernardoBernardo Ramos CostaRA883949
+20FelipeFelipe Rafael BieniekRA889629
+21FelipeFelipe TonelliRA930364
+23PauloPaulo Henrique Monte ...RA973321
+Juventude / RS
+NºApelidoNome CompletoT/RP/ACBF
+1FredericoFrederico Schwambach ...T(g)A961934
+2EnzoEnzo Costa LamonatoTA888056
+3GabrielGabriel de Oliveira  ...TA881913
+4ViniciusVinicius Ferreira Ro ...TA881916
+5LucasLucas BinsfeldTA888058
+6DaviDavi Vieira da SilvaTA862355
+7MulitaMurillo da Veiga Alb ...TA887425
+8ThierriThierri Sangurgo Lei ...TA888060
+9HectorHector Lopes LeãoTA886356
+10RichardRichard Gabriel da R ...TA808307
+11Luiz FelipeLuiz Felipe Alves da ...TA809678
+12MuryelMuryel Jose Lippi Sa ...R(g)A956944
+13LuizLuiz Eduardo Alves d ...RA890873
+14GuilhermeGuilherme TonetRA969921
+15AndréAndré ReisRA956932
+16LavardaHenrique Lavarda Cav ...RA887381
+17CelsoAnthony CelsoRA887357
+18KauãKauã KreutzRA857519
+19HenriqueHenrique Forlin Bran ...RA857517
+20MatheusMatheus Machado Gonç ...RA884165
+21ArthurArthur Ouriques da S ...RA887142
+22Guilherme  ...Guilherme Barcellos  ...RA932664
+23CarlosCarlos Guilherme dos ...RA911180
+T = Titular | R = Reserva | P = Profissional | A = Amador | (g) = Goleiro
+FEDERACAO GAUCHA DE FUTEBOLPublicação da Súmula: 17/08/2026 09:23Emissão desta via: 17/08/2026 09:23Página 1
+
+Comissão Técnica
+Passo Fundo / RS
+Técnico: Leandro Sosmaier
+Preparador Físico: Lucas Da Silva Consul
+Médico: GUSTAVO PEROTTI TICIANI
+Treinador De Goleiros: Joao Vitor Sbalchiero Da Silva
+Juventude / RS
+Técnico: Leonardo Bruno Boff
+Preparador Físico: Rodrigo Angrisani
+Massagista: Jefferson Vargas De Almeida
+Treinador De Goleiros: Joao Pedro Sartor
+Gols
+Tempo1T/2TNºTipoNome do JogadorEquipe
+08:00111NRLuiz Felipe Alves da SilvaJuventude - RS
+11:00110NRBernardo Martins GoebelPasso Fundo - RS
+17:0018NRBreno Rodrigues de SenaPasso Fundo - RS
+Cartões Amarelos
+Tempo1T/2TNºNome do JogadorEquipe
+08:002T5Lorenzo Bianchi FinochettiPasso Fundo
+Motivo: 242 - Dar ou tentar dar uma rasteira ou um calço em um adversário de maneira temerária na disputa da bola. - Por calçar seu
+adversário de maneira temerária na disputa da bola.
+11:002T3Gabriel de Oliveira MoreiraJuventude
+Motivo: 242 - Dar ou tentar dar uma rasteira ou um calço em um adversário de maneira temerária na disputa da bola. - Por calçar seu
+adversário de maneira temerária na disputa da bola.
+22:002T6Davi Vieira da SilvaJuventude
+Motivo: 242 - Dar ou tentar dar uma rasteira ou um calço em um adversário de maneira temerária na disputa da bola. - Por calçar seu
+adversário de maneira temerária na disputa da bola.
+32:002T3Vitor Eduardo MarcolinaPasso Fundo
+Motivo: 242 - Dar ou tentar dar uma rasteira ou um calço em um adversário de maneira temerária na disputa da bola. - Por calçar seu
+adversário de maneira temerária na disputa da bola.
+35:002T11Vicente Bilibio GoecksPasso Fundo
+Motivo: 365 - Retardar excessivamente a execução de um arremesso lateral ou tiro livre. - Por retardar excessivamente a execução de
+um arremesso lateral atrasando o reinício de jogo.
++03:002T8Thierri Sangurgo LeitzkeJuventude
+Motivo: 357 - Reclamar / protestar (verbalmente ou por gestos) ostensivamente contra decisão da arbitragem. - Por reclamar
+ostensivamente contra decisão da arbitragem.
+-PJPFRodrigo AngrisaniJuventude
+Motivo: 357 - Reclamar / protestar (verbalmente ou por gestos) ostensivamente contra decisão da arbitragem. - Por reclamar e
+protestar ostensivamente, com palavras e gestos, contra as decisões da arbitragem, após o término da partida.
+Cartões Vermelhos
+Tempo1T/2TNºNome do Jogador
+NÃO HOUVE EXPULSÕES
+FEDERACAO GAUCHA DE FUTEBOLPublicação da Súmula: 17/08/2026 09:23Emissão desta via: 17/08/2026 09:23Página 2
+
+Ocorrências / Observações
+Informo que o médico do E.C. Passo Fundo, senhor Gustavo Perotti Ticiani, CRM 57960, ficou responsável pelo atendimento em campo das
+duas equipes.
+Informo que a ambulância estava equipada com aparelho desfibrilador e sob a responsabilidade da médica senhora Tuani Isabel Bosa, CRM
+50678, com técnico em enfermagem e motorista.
+A segurança da partida ficou a cargo da empresa ANA PAULA GUCCIARDO GOMES, CNPJ: 64.378.248/0001-73, sob a responsabilidade
+do senhor Geziel Hermel, CPF 039.180.120-18, com equipe composta por 5 seguranças.
+Motivo de atraso no início e/ou reinício, e de acréscimos:
+Não houve atrasos no início e reinício da partida.
+Acréscimos de 3 minutos no 1º tempo devido ao atendimento a atletas supostamente lesionados e recuperação do tempo perdido.
+Acréscimos de 7 minutos no 2º tempo devido ao atendimento a atletas supostamente lesionados, substituições e recuperação do tempo perdido.
+Observações Eventuais
+NADA HOUVE DE ANORMAL.
+Substituições
+Tempo1T/2TEquipeEntrouSaiu
+00:00INTJuventude - RS17 - Anthony Celso9 - Hector Lopes Leão
+10:002TJuventude - RS18 - Kauã Kreutz5 - Lucas Binsfeld
+16:002TPasso Fundo - RS18 - Benjamin da Silva Mendonça7 - Henrique Schuster Sipriani
+20:002TJuventude - RS16 - Henrique Lavarda Cavalheiro10 - Richard Gabriel da Rosa
+21:002TPasso Fundo - RS16 - Ruan Gustavo Paz5 - Lorenzo Bianchi Finochetti
+23:002TJuventude - RS19 - Henrique Forlin Brancher7 - Murillo da Veiga Albernaz
+23:002TJuventude - RS14 - Guilherme Tonet6 - Davi Vieira da Silva
+33:002TPasso Fundo - RS23 - Paulo Henrique Monteiro Silva8 - Breno Rodrigues de Sena
+FEDERACAO GAUCHA DE FUTEBOLPublicação da Súmula: 17/08/2026 09:23Emissão desta via: 17/08/2026 09:23Página 3

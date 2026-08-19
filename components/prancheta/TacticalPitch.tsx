@@ -2,7 +2,7 @@
 
 import { Plus } from "lucide-react";
 import { ClubeCrest } from "@/components/app/ClubeCrest";
-import { getAtletaByBid, getClubeById } from "@/lib/mock-data";
+import type { AtletaRecord } from "@/lib/services/atletas";
 import type { FormationSlot } from "@/lib/prancheta-formations";
 import type { TacticalBoardSlotRecord } from "@/lib/services/tactical-board";
 import { useT } from "@/lib/i18n/I18nProvider";
@@ -11,6 +11,7 @@ export function TacticalPitch({
   slots,
   lineup,
   scores,
+  athletes,
   zoom = 100,
   onSelectSlot,
   disabled = false,
@@ -18,6 +19,7 @@ export function TacticalPitch({
   slots: FormationSlot[];
   lineup: TacticalBoardSlotRecord[];
   scores: Map<number, number>;
+  athletes: Map<number, AtletaRecord>;
   zoom?: number;
   onSelectSlot: (slot: FormationSlot) => void;
   disabled?: boolean;
@@ -44,8 +46,7 @@ export function TacticalPitch({
 
       {slots.map((slot, order) => {
         const entry = lineup.find((item) => item.order === order);
-        const athlete = entry ? getAtletaByBid(entry.bid) : undefined;
-        const club = athlete ? getClubeById(athlete.currentClubId) : undefined;
+        const athlete = entry ? athletes.get(entry.bid) : undefined;
         return (
           <button
             key={slot.id}
@@ -59,7 +60,7 @@ export function TacticalPitch({
             {athlete ? (
               <span className="flex w-[76px] flex-col items-center sm:w-[92px]">
                 <span className="relative flex h-10 w-10 items-center justify-center rounded-full border-2 border-brand bg-surface shadow-lg transition-transform group-hover:scale-105 sm:h-12 sm:w-12">
-                  <ClubeCrest src={club?.webpCrestUrl ?? null} name={club?.name ?? "?"} size={28} />
+                  <ClubeCrest src={athlete.currentClubCrestUrl} name={athlete.currentClubName ?? "?"} size={28} />
                   <span className="absolute -right-2 -top-1 rounded-full bg-brand px-1.5 py-0.5 text-[9px] font-extrabold text-black">
                     {Math.round(scores.get(order) ?? 0)}
                   </span>

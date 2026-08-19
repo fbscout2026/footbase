@@ -2,13 +2,21 @@
 
 import { Info } from "lucide-react";
 import { useT } from "@/lib/i18n/I18nProvider";
-import { getEvolucao } from "@/lib/atleta-extra";
-import type { MockAtleta } from "@/lib/mock-data";
+import type { EvolucaoPoint } from "@/lib/services/atletas";
 
-// Dependency-free inline SVG line chart of the performance index per round.
-export function EvolutionChart({ atleta }: { atleta: MockAtleta }) {
+// Dependency-free inline SVG line chart of the real per-match performance
+// index — one point per súmula the athlete actually appeared in (Session 52:
+// replaces a fabricated 6-point synthetic wave that showed a trend line even
+// for an athlete with a single real match, reported live by the user).
+export function EvolutionChart({ data }: { data: EvolucaoPoint[] }) {
   const { t } = useT();
-  const data = getEvolucao(atleta);
+
+  if (data.length < 2) {
+    return (
+      <p className="text-sm text-muted">{t("dossie.evolution.insufficient")}</p>
+    );
+  }
+
   const W = 340;
   const H = 130;
   const pad = 22;
@@ -54,12 +62,7 @@ export function EvolutionChart({ atleta }: { atleta: MockAtleta }) {
 
       <p className="flex items-start gap-2 text-xs leading-relaxed text-muted">
         <Info size={13} className="mt-0.5 shrink-0" />
-        <span>
-          <span className="mr-1 rounded bg-brand/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-brand">
-            {t("dossie.evolution.preview")}
-          </span>
-          {t("dossie.evolution.info")}
-        </span>
+        <span>{t("dossie.evolution.info")}</span>
       </p>
     </div>
   );

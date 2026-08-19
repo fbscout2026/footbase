@@ -6,7 +6,6 @@ import { Search, ChevronDown } from "lucide-react";
 import { useT } from "@/lib/i18n/I18nProvider";
 import type { TranslationKey } from "@/lib/i18n/dictionaries";
 import { cn } from "@/lib/cn";
-import { mockAtletas } from "@/lib/mock-data";
 import { createClient } from "@/lib/supabase/client";
 
 type Entity = "atletas" | "clubes" | "torneios";
@@ -25,9 +24,40 @@ export function UniversalSearch() {
   const [query, setQuery] = useState("");
   const [entityMenuOpen, setEntityMenuOpen] = useState(false);
   const [resultsOpen, setResultsOpen] = useState(false);
+  const [atletaResults, setAtletaResults] = useState<Result[]>([]);
   const [clubResults, setClubResults] = useState<Result[]>([]);
   const [torneioResults, setTorneioResults] = useState<Result[]>([]);
   const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (entity !== "atletas" || query.trim().length < 2) {
+      setAtletaResults([]);
+      return;
+    }
+    let active = true;
+    const timer = window.setTimeout(async () => {
+      const safeQuery = query.trim().replace(/[%_]/g, "");
+      if (safeQuery.length < 2) {
+        if (active) setAtletaResults([]);
+        return;
+      }
+      // BID is numeric — `ilike` on a bigint column errors, so a purely-numeric
+      // query searches by exact bid instead of by name substring.
+      const isNumeric = /^\d+$/.test(safeQuery);
+      const q = createClient().from("atletas").select("bid,name,main_position,current_category").order("name").limit(6);
+      const { data } = isNumeric ? await q.eq("bid", Number(safeQuery)) : await q.ilike("name", `%${safeQuery}%`);
+      if (active) {
+        setAtletaResults(
+          (data ?? []).map((a) => ({
+            href: `/atletas/${a.bid}`,
+            primary: a.name,
+            secondary: [a.main_position, a.current_category, `BID ${a.bid}`].filter(Boolean).join(" · "),
+          })),
+        );
+      }
+    }, 250);
+    return () => { active = false; window.clearTimeout(timer); };
+  }, [entity, query]);
 
   useEffect(() => {
     if (entity !== "clubes" || query.trim().length < 2) {
@@ -43,7 +73,7 @@ export function UniversalSearch() {
       }
       const { data } = await createClient().from("view_clube_resumo")
         .select("id,name,state,federacao").ilike("name", `%${safeQuery}%`).order("name").limit(6);
-      if (active) setClubResults((data ?? []).map((club) => ({ href: `/clubes/${club.id}`, primary: club.name, secondary: [club.state, club.federacao].filter(Boolean).join(" · ") })));
+      if (active) setClubResults((data ?? []).map((club) => ({ href: `/clubes/${club.id}`, primary: club.name.toUpperCase(), secondary: [club.state, club.federacao].filter(Boolean).join(" · ") })));
     }, 250);
     return () => { active = false; window.clearTimeout(timer); };
   }, [entity, query]);
@@ -79,23 +109,11 @@ export function UniversalSearch() {
   }, []);
 
   const results = useMemo<Result[]>(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return [];
-    if (entity === "atletas") {
-      return mockAtletas
-        .filter((a) => a.name.toLowerCase().includes(q) || String(a.bid).includes(q))
-        .slice(0, 6)
-        .map((a) => ({
-          href: `/atletas/${a.bid}`,
-          primary: a.name,
-          secondary: `${a.mainPosition} · ${a.currentCategory} · BID ${a.bid}`,
-        }));
-    }
-    if (entity === "clubes") {
-      return clubResults;
-    }
+    if (!query.trim()) return [];
+    if (entity === "atletas") return atletaResults;
+    if (entity === "clubes") return clubResults;
     return torneioResults;
-  }, [clubResults, torneioResults, entity, query]);
+  }, [atletaResults, clubResults, torneioResults, entity, query]);
 
   function go(href: string) {
     setResultsOpen(false);

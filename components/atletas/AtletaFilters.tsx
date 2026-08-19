@@ -2,22 +2,21 @@
 
 import { useT } from "@/lib/i18n/I18nProvider";
 import { Select, type SelectOption } from "@/components/ui/Select";
-import { mockAtletas } from "@/lib/mock-data";
-import type { Position, Categoria } from "@/lib/mock-data";
-import { type AtletaFilterState, emptyFilters, CATEGORY_ORDER } from "@/lib/atletas-filters";
+import { type AtletaFilterState, type Position, type Categoria, emptyFilters, CATEGORY_ORDER } from "@/lib/atletas-filters";
 import { cn } from "@/lib/cn";
 
 const POSITIONS: Position[] = ["GK", "CB", "LB", "RB", "DM", "CM", "AM", "LW", "RW", "ST"];
-const NATIONALITIES = Array.from(new Set(mockAtletas.map((a) => a.nacionalidade))).sort();
 
 type Mode = "exact" | "between";
 
 export function AtletaFilters({
   filters,
   onChange,
+  nationalities,
 }: {
   filters: AtletaFilterState;
   onChange: (next: AtletaFilterState) => void;
+  nationalities: string[];
 }) {
   const { t } = useT();
   const set = <K extends keyof AtletaFilterState>(key: K, value: AtletaFilterState[K]) =>
@@ -25,7 +24,7 @@ export function AtletaFilters({
 
   const all: SelectOption = { value: "", label: t("common.all") };
   const triOptions: SelectOption[] = [all, { value: "yes", label: t("common.yes") }, { value: "no", label: t("common.no") }];
-  const nationalityOptions: SelectOption[] = [all, ...NATIONALITIES.map((n) => ({ value: n, label: n }))];
+  const nationalityOptions: SelectOption[] = [all, ...nationalities.map((n) => ({ value: n, label: n }))];
   const positionOptions: SelectOption[] = [all, ...POSITIONS.map((p) => ({ value: p, label: p }))];
   const footOptions: SelectOption[] = [
     all,

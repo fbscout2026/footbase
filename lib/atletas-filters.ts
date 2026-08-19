@@ -1,4 +1,13 @@
-import type { MockAtleta, Position, DominantFoot, Categoria } from "@/lib/mock-data";
+import type { AtletaRecord } from "@/lib/services/atletas";
+
+// Positions/categories are open text in the real data (not every position has an
+// abbreviation code in the roster source), but the filter UI still needs a fixed
+// vocabulary — kept here rather than re-importing the old mock's closed unions.
+export type Position = "GK" | "CB" | "LB" | "RB" | "DM" | "CM" | "AM" | "LW" | "RW" | "ST";
+export type DominantFoot = "left" | "right" | "both";
+export type Categoria =
+  | "SUB-11" | "SUB-12" | "SUB-13" | "SUB-14" | "SUB-15"
+  | "SUB-16" | "SUB-17" | "SUB-18" | "SUB-19" | "SUB-20";
 
 type TriState = "" | "yes" | "no";
 type Mode = "exact" | "between";
@@ -7,7 +16,7 @@ export const CATEGORY_ORDER: Categoria[] = [
   "SUB-11", "SUB-12", "SUB-13", "SUB-14", "SUB-15",
   "SUB-16", "SUB-17", "SUB-18", "SUB-19", "SUB-20",
 ];
-const catRank = (c: Categoria | "") => (c === "" ? -1 : CATEGORY_ORDER.indexOf(c));
+const catRank = (c: string | null | "") => (!c ? -1 : CATEGORY_ORDER.indexOf(c as Categoria));
 
 export interface AtletaFilterState {
   // identification
@@ -67,19 +76,27 @@ const num = (s: string): number | null => {
   return Number.isFinite(n) ? n : null;
 };
 
-function passesRange(value: number, mode: Mode, exact: string, from: string, to: string): boolean {
+// `value: null` means the real athlete has no data for this field yet (never
+// scraped — birth date, height, etc. only exist once a claiming agent fills them
+// in). Only excludes the athlete when the user actually set a filter on this
+// dimension — an unset filter (the common case for real, mostly-unclaimed
+// athletes) never hides someone just because a field is unknown.
+function passesRange(value: number | null, mode: Mode, exact: string, from: string, to: string): boolean {
   if (mode === "exact") {
     const e = num(exact);
-    return e === null || value === e;
+    if (e === null) return true;
+    return value !== null && value === e;
   }
   const f = num(from);
   const t = num(to);
+  if (f === null && t === null) return true;
+  if (value === null) return false;
   if (f !== null && value < f) return false;
   if (t !== null && value > t) return false;
   return true;
 }
 
-export function applyFilters(list: MockAtleta[], f: AtletaFilterState): MockAtleta[] {
+export function applyFilters(list: AtletaRecord[], f: AtletaFilterState): AtletaRecord[] {
   const wFrom = num(f.weightFrom);
   const wTo = num(f.weightTo);
   const mMatches = num(f.minMatches);
@@ -112,8 +129,9 @@ export function applyFilters(list: MockAtleta[], f: AtletaFilterState): MockAtle
     if (f.foot && a.dominantFoot !== f.foot) return false;
     if (f.position && a.mainPosition !== f.position) return false;
     if (f.secondaryPosition && a.posicaoSecundaria !== f.secondaryPosition) return false;
-    if (wFrom !== null && a.weightKg < wFrom) return false;
-    if (wTo !== null && a.weightKg > wTo) return false;
+    if ((wFrom !== null || wTo !== null) && a.weightKg === null) return false;
+    if (wFrom !== null && a.weightKg !== null && a.weightKg < wFrom) return false;
+    if (wTo !== null && a.weightKg !== null && a.weightKg > wTo) return false;
 
     // performance
     if (mMatches !== null && a.stats.totalMatches < mMatches) return false;

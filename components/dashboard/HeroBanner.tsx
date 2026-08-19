@@ -2,27 +2,23 @@
 
 import { FileText, Star, Users, Bell, type LucideIcon } from "lucide-react";
 import { useT } from "@/lib/i18n/I18nProvider";
-import { mockAtletas } from "@/lib/mock-data";
+import type { DashboardHeroStats } from "@/lib/services/dashboard";
 
-export function HeroBanner() {
+export function HeroBanner({ stats }: { stats: DashboardHeroStats }) {
   const { t } = useT();
 
-  const highlight = [...mockAtletas].sort(
-    (a, b) => b.stats.totalGoals - a.stats.totalGoals
-  )[0];
-
   const cards: { icon: LucideIcon; label: string; value: string; hint?: string }[] = [
-    { icon: FileText, label: t("dashboard.hero.sumulas"), value: "128" },
+    { icon: FileText, label: t("dashboard.hero.sumulas"), value: String(stats.sumulasCount) },
     {
       icon: Star,
       label: t("dashboard.hero.highlight"),
-      value: highlight?.name ?? "—",
-      hint: highlight ? `${highlight.stats.totalGoals} ${t("hero.goals")}` : undefined,
+      value: stats.topScorer?.name ?? "—",
+      hint: stats.topScorer ? `${stats.topScorer.goals} ${t("hero.goals")}` : undefined,
     },
     {
       icon: Users,
       label: t("dashboard.hero.athletes"),
-      value: String(mockAtletas.length),
+      value: String(stats.athletesCount),
     },
     {
       icon: Bell,

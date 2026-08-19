@@ -10,9 +10,10 @@ import { BenchPanel } from "@/components/prancheta/BenchPanel";
 import { useFavorites } from "@/lib/favorites/FavoritesProvider";
 import { useT } from "@/lib/i18n/I18nProvider";
 import { createClient } from "@/lib/supabase/client";
-import { favoritesToRankingCandidates } from "@/lib/prancheta-adapter";
+import { loadFavoritesBoardData } from "@/lib/prancheta-adapter";
+import type { AtletaRecord } from "@/lib/services/atletas";
 import { FORMATIONS, FORMATION_SLOTS, type Formation, type FormationSlot } from "@/lib/prancheta-formations";
-import { buildBestLineup, rankBench, rankCandidatesForSlot } from "@/lib/prancheta-ranking";
+import { buildBestLineup, rankBench, rankCandidatesForSlot, type RankingCandidate } from "@/lib/prancheta-ranking";
 import {
   replaceBoardSlots,
   updateBoardName,
@@ -30,7 +31,17 @@ export function TacticalBoardClient({
   const { t } = useT();
   const { favorites, savingBid } = useFavorites();
   const client = useMemo(() => createClient(), []);
-  const candidates = useMemo(() => favoritesToRankingCandidates(favorites), [favorites]);
+  const [candidates, setCandidates] = useState<RankingCandidate[]>([]);
+  const [athletes, setAthletes] = useState<Map<number, AtletaRecord>>(new Map());
+  useEffect(() => {
+    let active = true;
+    loadFavoritesBoardData(client, favorites).then((data) => {
+      if (!active) return;
+      setCandidates(data.candidates);
+      setAthletes(data.athletes);
+    });
+    return () => { active = false; };
+  }, [client, favorites]);
   const [formation, setFormation] = useState<Formation>(board.formation);
   const [boardName, setBoardName] = useState(board.name);
   const [lineup, setLineup] = useState(initialSlots);
@@ -279,19 +290,21 @@ export function TacticalBoardClient({
               slots={slots}
               lineup={lineup}
               scores={scores}
+              athletes={athletes}
               zoom={zoom}
               disabled={saving}
               onSelectSlot={setPickerSlot}
             />
           </div>
         </section>
-        <BenchPanel candidates={bench} />
+        <BenchPanel candidates={bench} athletes={athletes} />
       </div>
 
       {pickerSlot && (
         <SlotPicker
           slot={pickerSlot}
           candidates={pickerCandidates}
+          athletes={athletes}
           hasCurrent={lineup.some((entry) => entry.order === slots.findIndex((slot) => slot.id === pickerSlot.id))}
           onChoose={(bid) => chooseAthlete(pickerSlot, bid)}
           onClear={() => clearSlot(pickerSlot)}

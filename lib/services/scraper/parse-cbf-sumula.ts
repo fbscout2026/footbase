@@ -27,6 +27,8 @@ export interface RosterPlayer {
   shirt: number;
   /** Nickname + full-name column, cleaned of truncation ellipses (see note). */
   displayName: string;
+  /** The same column before ellipsis-cleaning — needed to recover the full name (see `nomeCompletoFromGlued`). */
+  rawBlob: string;
   bid: number;
   isGoalkeeper: boolean;
   starter: boolean;
@@ -43,6 +45,14 @@ export interface ParseCbfOptions {
   /** Real `cbf:{id}` keys when known from discovery; override the provisional ones. */
   homeSourceKey?: string;
   awaySourceKey?: string;
+  /**
+   * Direct crest URL from the source's own page, when it exposes one (e.g. FGF's
+   * match-listing `<img>` — same idea as FERJ/FMF's `ParsedClub.crestUrl`). CBF
+   * proper never sets this (its crest is a formula on the numeric club id instead),
+   * so this stays unset there and `ingest.ts` falls through to that formula.
+   */
+  homeCrestUrl?: string | null;
+  awayCrestUrl?: string | null;
   /**
    * CBF athlete profiles (canonical name + `birth_date`) keyed by BID. When supplied,
    * the matching athletes carry a `birthDate`, so `ingest.ts` can seed them; without
@@ -75,6 +85,48 @@ function toIsoDate(br: string): string {
 /** Strip the " ..." / "…" truncation markers pdf columns leave and tidy spaces. */
 function cleanName(raw: string): string {
   return raw.replace(/\s*(?:\.\.\.|…)\s*/g, " ").replace(/\s+/g, " ").trim();
+}
+
+// The roster column glues "Apelido" (nickname) directly onto "Nome Completo" (full
+// legal name) with no separator — e.g. "WeversonWeverson Guilherme M ...". We want
+// `atletas.name` to carry the full name, not the nickname, whenever it can be
+// recovered from the glued text alone (until the CBF athlete-profile endpoint is
+// wired — see module header — the súmula is the only name source).
+//
+// Two patterns cover most real rows (confirmed against a live fixture, Session 52):
+//  1. The apelido itself got truncated ("Gabriel We ...Gabriel Laizo Werneck") — the
+//     literal "..."/"…" marks the boundary; everything after it is the full name.
+//  2. The apelido is a short, case-insensitive prefix of the full name and both are
+//     glued with no truncation in between ("WeversonWeverson Guilherme M ...") — find
+//     the repeat and keep the suffix.
+// When neither pattern matches (e.g. "Da Mata" as a nickname for "João Pedro do
+// Nascimento..." — not a prefix at all, same ambiguity FERJ's súmulas have; or an
+// abbreviated apelido like "JOSÉ H." for "José Henrique" — the abbreviation itself
+// isn't a literal prefix), there is no reliable way to recover the split from text
+// alone, so the glued blob is kept as-is: no worse than before, still a usable
+// display name.
+//
+// The repeat check is accent-INSENSITIVE, not just case-insensitive (confirmed live,
+// Session 52: "VINÍCIUSVinicius Rodrigues M" — the apelido carries the accent, the
+// full name doesn't, so a plain `.toLowerCase()` compare never finds the repeat).
+function foldForCompare(s: string): string {
+  return s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+}
+
+function nomeCompletoFromGlued(blob: string): string {
+  const ellipsisAt = blob.search(/\.\.\.|…/);
+  if (ellipsisAt !== -1) {
+    const after = blob.slice(ellipsisAt).replace(/^(?:\.\.\.|…)\s*/, "");
+    if (after.trim()) return cleanName(after);
+    blob = blob.slice(0, ellipsisAt); // trailing-only truncation; try the repeat check below
+  }
+  const folded = foldForCompare(blob);
+  for (let i = 2; i <= Math.floor(blob.length / 2); i++) {
+    if (folded.slice(i).startsWith(folded.slice(0, i)) && folded[i - 1] !== folded[i]) {
+      return cleanName(blob.slice(i));
+    }
+  }
+  return cleanName(blob);
 }
 
 function slug(s: string): string {
@@ -114,6 +166,7 @@ function parseRosterBlock(block: string): RosterPlayer[] {
     players.push({
       shirt: Number(shirt),
       displayName: cleanName(blob),
+      rawBlob: blob,
       bid: Number(cbf),
       isGoalkeeper: !!goalkeeperMarker,
       starter: role === "T",
@@ -157,12 +210,14 @@ export function parseCbfSumula(rawText: string, opts: ParseCbfOptions = {}): Cbf
     name: homeLabel.name,
     state: homeLabel.state,
     federacao: null,
+    crestUrl: opts.homeCrestUrl ?? null,
   };
   const away: ParsedClub = {
     sourceKey: opts.awaySourceKey ?? provisionalSourceKey(awayLabel.name, awayLabel.state),
     name: awayLabel.name,
     state: awayLabel.state,
     federacao: null,
+    crestUrl: opts.awayCrestUrl ?? null,
   };
 
   // --- Roster ("Relação de Jogadores") -------------------------------------
@@ -188,7 +243,7 @@ export function parseCbfSumula(rawText: string, opts: ParseCbfOptions = {}): Cbf
     const profile = profileByBid.get(p.bid);
     return {
       bid: p.bid,
-      name: profile?.name ?? p.displayName,
+      name: profile?.name ?? nomeCompletoFromGlued(p.rawBlob),
       birthDate: profile?.birthDate ?? null,
       nacionalidade: profile?.nacionalidade ?? null,
       mainPosition: profile?.mainPosition ?? (p.isGoalkeeper ? "GK" : null),

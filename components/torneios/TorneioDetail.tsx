@@ -57,10 +57,10 @@ export function TorneioDetail({ data }: { data: TorneioDetailData }) {
                   <tr key={row.club.id} className="border-b border-border/60">
                     <td className="px-3 py-2 text-muted">{i + 1}</td>
                     <td className="px-2 py-2">
-                      <div className="flex items-center gap-2">
+                      <Link href={`/clubes/${row.club.id}`} className="flex items-center gap-2 hover:text-brand">
                         <ClubeCrest src={row.club.crestUrl} name={row.club.name} size={20} />
-                        <span className="truncate font-medium">{row.club.name}</span>
-                      </div>
+                        <span className="truncate font-medium uppercase">{row.club.name}</span>
+                      </Link>
                     </td>
                     <td className="px-2 py-2 text-center">{row.played}</td>
                     <td className="px-2 py-2 text-center">{row.wins}</td>

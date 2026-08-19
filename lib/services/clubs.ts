@@ -60,7 +60,7 @@ const CLUB_COLUMNS = "id,name,state,federacao,webp_crest_url,reivindicado_por,cl
 function mapClub(row: ClubViewRow): ClubSummaryRecord {
   return {
     id: row.id,
-    name: row.name,
+    name: row.name.toUpperCase(),
     state: row.state,
     federation: row.federacao,
     crestUrl: row.webp_crest_url,

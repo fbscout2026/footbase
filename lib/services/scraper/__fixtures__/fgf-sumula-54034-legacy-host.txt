@@ -1,0 +1,141 @@
+
+
+Jogo: 3
+FEDERACAO GAUCHA DE FUTEBOL
+SÚMULA ON-LINE
+Campeonato:Estadual Sub 15 - Não Profissional/2026Rodada:1
+Jogo:Progresso Fc / RS X Novo Hamburgo / RS
+Data:22/05/2026Horário:15:00Estádio:CT Rubro Negro / Pelotas
+Arbitragem
+Árbitro:Joao Fabricio Cardoso Dornelles (FD/RS)
+Assistente 1:Rui Renato Garcia Vergara Junior (FD/RS)
+Assistente 2:Rodrigo Del Ponte Da Silva (FD/RS)
+Cronologia
+1º Tempo
+Entrada do mandante:14:55     Atraso:Não Houve
+Entrada do visitante: 14:55     Atraso:Não Houve
+Início 1º Tempo: 15:00     Atraso:Não Houve
+Término do 1º Tempo:15:38     Acréscimo:3 min
+2º Tempo
+Entrada do mandante:15:50     Atraso:Não Houve
+Entrada do visitante:15:50     Atraso:Não Houve
+Início do 2º Tempo:15:53     Atraso:Não Houve
+Término do 2º Tempo:16:34     Acréscimo:6 min
+Resultado do 1º Tempo: 0 X 1     Resultado Final: 2 X 2      
+Relação de Jogadores
+Progresso Fc / RS
+NºApelidoNome CompletoT/RP/ACBF
+1JOAOJoao Roberto Prietto ...T(g)A917902
+2ARTHURARTHUR KRUMMENAUER C ...TA966366
+3HENRYHenry Camargo da Cun ...TA879396
+4PEDROPEDRO RIBEIRO DA SIL ...TA962285
+5BENICIOBENICIO EDOM DALBOSCOTA962288
+6CAUACaua Gonsales Dornel ...TA886233
+7LEONARDOLEONARDO DE AGUIAR T ...TA956232
+8HYAGOHyago dos Santos Oli ...TA902240
+9GUSTAVOGUSTAVO NOGUEIRA DE  ...TA967434
+10HENTHONYHenthony Schaun de L ...TA881915
+11DAVIDavi Soares PereiraTA926358
+12brasilHenrique Sant'anna B ...R(g)A880118
+13JOAOJOAO VITOR GOMES LIM ...RA966349
+14ANTONYAntony Farias PereiraRA886170
+15LUCCALucca Tailor Leite M ...RA879327
+16MIGUELMiguel Hellvig Siege ...RA924030
+17OTAVIOOTAVIO XAVIER DA SIL ...RA963756
+18ARTHURArthur de Almeida He ...RA882522
+19BRAIANBRAIAN DINIZ RODRIGU ...RA963747
+20RYANRyan Rodrigues SilvaRA924736
+21PHPaulo Henrique Coelh ...RA881401
+22MAURICIOMauricio Machado Sev ...RA926356
+Novo Hamburgo / RS
+NºApelidoNome CompletoT/RP/ACBF
+1LorenzoLorenzo Ribas da Sil ...T(g)A886406
+2KAUAKaua Felipe Lopes Ba ...TA897976
+3FERRARIARTHUR CIDADE FERRAR ...TA967843
+4GUI PRADOGUILHERME FRANCISCO  ...TA967584
+5GUSTAVOGustavo Ferreira dos ...TA887586
+6DAVI PRATESDavi Ferreira PratesTA825262
+7LucasLucas Pereira CostaTA816976
+8PLPedro Lucas Lima Lei ...TA847580
+9RobertRobert da CostaTA901864
+10GustavoGustavo Silva ChiesaTA857654
+11DA LUZYuri Silva da LuzTA958701
+12SARTORPEDRO SARTORR(g)A967444
+13ANDRÉAndré Luis da Silvei ...RA825265
+14ArthurArthur CampagnoloRA786556
+15NÍCOLASNícolas Teixeira Mai ...RA885320
+16BISPOBernardo de Oliveira ...RA909452
+17ToniAntonio Ceccatto da  ...RA892220
+18YAGOYago Miguel Pereira  ...RA800709
+19EMILIANOEmiliano Feitosa Rod ...RA886372
+20CAIOCaio Corrêa dos Sant ...RA886215
+21THEOTheo Ramires da SilvaRA884649
+22KAUEKaue Malheiros de Ba ...RA902725
+T = Titular | R = Reserva | P = Profissional | A = Amador | (g) = Goleiro
+FEDERACAO GAUCHA DE FUTEBOLPublicação da Súmula: 24/05/2026 20:24Emissão desta via: 24/05/2026 20:24Página 1
+
+Comissão Técnica
+Progresso Fc / RS
+Técnico: Carlos Alberto Pereira Silveira
+Médico: CAMILA JORGE FERREIRA
+Massagista: Carlos Moacir Casanet Holz
+Treinador De Goleiros: Gilvane Severo De Matos
+Novo Hamburgo / RS
+Técnico: Newmar Tisian Ornelas
+Preparador Físico: Luan Carlos Da Silva
+Treinador De Goleiros: Jeliel Meneghini
+Gols
+Tempo1T/2TNºTipoNome do JogadorEquipe
+19:0013NRARTHUR CIDADE FERRARI DE SOUZANovo Hamburgo - RS
+12:0029NRRobert da CostaNovo Hamburgo - RS
+22:0024CTGUILHERME FRANCISCO MOREIRA DO PRADONovo Hamburgo - RS
++526NRCaua Gonsales DornellesProgresso Fc - RS
+Cartões Amarelos
+Tempo1T/2TNºNome do JogadorEquipe
+17:002T19BRAIAN DINIZ RODRIGUESProgresso Fc
+Motivo: 359 - Entrar ou retornar ao campo de jogo sem a permissão do árbitro. - CARTÃO APLICADO POR INGRESSAR AO CAMPO
+DE JOGO SEM AUTORIZAÇÃO DO ÁRBITRO.
+35:002T5BENICIO EDOM DALBOSCOProgresso Fc
+Motivo: 243 - Cometer uma falta tática para impedir um ataque promissor. - PUXOU O  ADVERSÁRIO PELA CAMISETA  IMPEDINDO
+UM ATAQUE PROMISSOR. 
+21:002T3ARTHUR CIDADE FERRARI DE SOUZANovo Hamburgo
+Motivo: 241 - Dar ou tentar dar um pontapé (chute) em um adversário de maneira temerária na disputa da bola. - DEU UM CALÇO
+TEMERÁRIO EM SEU ADVERSÁRIO NA DISPUTA DE BOLA.
+23:002T8Pedro Lucas Lima LeivaNovo Hamburgo
+Motivo: 242 - Dar ou tentar dar uma rasteira ou um calço em um adversário de maneira temerária na disputa da bola. - DAR UM
+CALÇO DE MANEIRA TEMERÁRIO EM SEU ADVERSÁRIO NA DISPUTA DE BOLA.
+27:002T19Emiliano Feitosa RodriguesNovo Hamburgo
+Motivo: 359 - Entrar ou retornar ao campo de jogo sem a permissão do árbitro. - CARTÃO APLICADO POR INGRESSAR AO CAMPO
+DE JOGO SEM AUTORIZAÇÃO DO ÁRBITRO.
++02:001T6Davi Ferreira PratesNovo Hamburgo
+Motivo: 243 - Cometer uma falta tática para impedir um ataque promissor. - PUXOU O ADVERSÁRIO PELA CAMISETA  IMPEDINDO
+UM ATAQUE PROMISSOR.
+Cartões Vermelhos
+Tempo1T/2TNºNome do Jogador
+NÃO HOUVE EXPULSÕES
+FEDERACAO GAUCHA DE FUTEBOLPublicação da Súmula: 24/05/2026 20:24Emissão desta via: 24/05/2026 20:24Página 2
+
+Ocorrências / Observações
+A médica Sra Camila Jorge Ferreira, CRM 57657-RS,da equipe do Progresso Futebol Clube, ficou responsável por prestar o atendimento
+para ambas as equipes. 
+A segurança da partida ficou a cargo da empresa Hevita Prestadora de Serviços, com o efetivo de 05 seguranças.
+Motivo de atraso no início e/ou reinício, e de acréscimos:
+- Acréscimos no 1* Tempo : Devido ao atendimento de jogadores supostamente lesionados e demais perdas de tempo.
+-Acréscimos no 2* Tempo : Devido ao atendimento de jogadores supostamente lesionados, paralisações para realização de substituições e demais perdas de
+tempo. 
+Observações Eventuais
+NADA HOUVE DE ANORMAL.
+Substituições
+Tempo1T/2TEquipeEntrouSaiu
+00:00INTProgresso Fc - RS17 - OTAVIO XAVIER DA SILVA9 - GUSTAVO NOGUEIRA DE NOGUEIRA
+17:002TProgresso Fc - RS13 - JOAO VITOR GOMES LIMA MARQUES4 - PEDRO RIBEIRO DA SILVA
+17:002TProgresso Fc - RS19 - BRAIAN DINIZ RODRIGUES7 - LEONARDO DE AGUIAR TELES
++05:002TProgresso Fc - RS22 - Mauricio Machado Severo13 - JOAO VITOR GOMES LIMA MARQUES
+00:00INTNovo Hamburgo - RS16 - Bernardo de Oliveira Bispo6 - Davi Ferreira Prates
+13:002TNovo Hamburgo - RS15 - Nícolas Teixeira Maia7 - Lucas Pereira Costa
+13:002TNovo Hamburgo - RS22 - Kaue Malheiros de Bairros10 - Gustavo Silva Chiesa
+27:002TNovo Hamburgo - RS19 - Emiliano Feitosa Rodrigues8 - Pedro Lucas Lima Leiva
+27:002TNovo Hamburgo - RS20 - Caio Corrêa dos Santos9 - Robert da Costa
+27:002TNovo Hamburgo - RS18 - Yago Miguel Pereira Rolim11 - Yuri Silva da Luz
++03:002TNovo Hamburgo - RS14 - Arthur Campagnolo5 - Gustavo Ferreira dos Santos
+FEDERACAO GAUCHA DE FUTEBOLPublicação da Súmula: 24/05/2026 20:24Emissão desta via: 24/05/2026 20:24Página 3

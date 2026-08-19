@@ -1,10 +1,6 @@
-import { getClubeById, mockAtletas, type MockAtleta } from "@/lib/mock-data";
-import { getEvolucao } from "@/lib/atleta-extra";
-import {
-  parseComparisonBidList,
-  selectWinningIds,
-  serializeComparisonBidList,
-} from "@/lib/comparison-rules";
+import type { AtletaRecord } from "@/lib/services/atletas";
+import { computePerformanceIndex } from "@/lib/atleta-extra";
+import { selectWinningIds, serializeComparisonBidList } from "@/lib/comparison-rules";
 
 export type ComparisonGroup = "profile" | "performance" | "special";
 export type ComparisonDirection = "higher" | "lower";
@@ -21,14 +17,14 @@ export interface ComparisonMetric {
   group: ComparisonGroup;
   format: ComparisonFormat;
   direction?: ComparisonDirection;
-  value: (atleta: MockAtleta) => string | number | null;
+  value: (atleta: AtletaRecord) => string | number | null;
 }
 
 export const comparisonMetrics: ComparisonMetric[] = [
   { id: "position", group: "profile", format: "text", value: (a) => a.mainPosition },
   { id: "age", group: "profile", format: "number", value: (a) => a.age },
   { id: "category", group: "profile", format: "text", value: (a) => a.currentCategory },
-  { id: "club", group: "profile", format: "text", value: (a) => getClubeById(a.currentClubId)?.name ?? "—" },
+  { id: "club", group: "profile", format: "text", value: (a) => a.currentClubName ?? "—" },
   { id: "height", group: "profile", format: "cm", value: (a) => a.heightCm },
   { id: "weight", group: "profile", format: "kg", value: (a) => a.weightKg },
   { id: "foot", group: "profile", format: "foot", value: (a) => a.dominantFoot },
@@ -52,19 +48,33 @@ export const comparisonMetrics: ComparisonMetric[] = [
   },
   {
     id: "evolution", group: "special", format: "number", direction: "higher",
-    value: (a) => getEvolucao(a).at(-1)?.value ?? null,
+    value: (a) => computePerformanceIndex(a),
   },
 ];
 
-export function parseComparisonBids(raw: string | null, atletas = mockAtletas): number[] {
-  return parseComparisonBidList(raw, new Set(atletas.map((a) => a.bid)));
+// No longer whitelists against a preloaded athlete list (the real dataset is
+// 3,000+ athletes — fetching every bid just to validate membership doesn't
+// scale). Format/dedup/limit(3) still applies; a bid that doesn't actually
+// exist simply returns no row when the real athletes are fetched downstream —
+// the same effective result, just resolved lazily instead of eagerly.
+export function parseComparisonBids(raw: string | null, limit = 3): number[] {
+  if (!raw) return [];
+  const unique: number[] = [];
+  for (const part of raw.split(",")) {
+    const bid = Number(part.trim());
+    if (Number.isInteger(bid) && bid > 0 && !unique.includes(bid)) {
+      unique.push(bid);
+      if (unique.length === limit) break;
+    }
+  }
+  return unique;
 }
 
 export function serializeComparisonBids(bids: number[]): string {
   return serializeComparisonBidList(bids);
 }
 
-export function getWinningBids(metric: ComparisonMetric, atletas: MockAtleta[]): Set<number> {
+export function getWinningBids(metric: ComparisonMetric, atletas: AtletaRecord[]): Set<number> {
   if (!metric.direction || atletas.length < 2) return new Set();
 
   return selectWinningIds(

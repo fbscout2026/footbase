@@ -5,10 +5,10 @@ import { FileClock } from "lucide-react";
 import { useT } from "@/lib/i18n/I18nProvider";
 import { WidgetCard } from "./WidgetCard";
 import { Badge } from "@/components/ui/Badge";
-import { expiringContractAtletas, getClubeById } from "@/lib/mock-data";
+import type { ContractRow } from "@/lib/services/dashboard";
 import { formatMonthYear } from "@/lib/format";
 
-export function RadarContratos() {
+export function RadarContratos({ athletes: expiringContractAtletas }: { athletes: ContractRow[] }) {
   const { t } = useT();
 
   return (
@@ -30,7 +30,7 @@ export function RadarContratos() {
                 <span className="min-w-0">
                   <span className="block truncate text-sm font-medium">{a.name}</span>
                   <span className="block truncate text-xs text-muted">
-                    {getClubeById(a.currentClubId)?.name} · {a.currentCategory}
+                    {a.currentClubName ?? "—"} · {a.currentCategory ?? "—"}
                   </span>
                 </span>
                 <Badge tone="warning">

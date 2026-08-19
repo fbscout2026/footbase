@@ -5,13 +5,14 @@ import { ClubeCrest } from "@/components/app/ClubeCrest";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { useT } from "@/lib/i18n/I18nProvider";
-import { getAtletaByBid, getClubeById } from "@/lib/mock-data";
+import type { AtletaRecord } from "@/lib/services/atletas";
 import type { FormationSlot } from "@/lib/prancheta-formations";
 import type { RankedCandidate } from "@/lib/prancheta-ranking";
 
 export function SlotPicker({
   slot,
   candidates,
+  athletes,
   hasCurrent,
   onChoose,
   onClear,
@@ -19,6 +20,7 @@ export function SlotPicker({
 }: {
   slot: FormationSlot;
   candidates: RankedCandidate[];
+  athletes: Map<number, AtletaRecord>;
   hasCurrent: boolean;
   onChoose: (bid: number) => void;
   onClear: () => void;
@@ -40,9 +42,8 @@ export function SlotPicker({
         <div className="scroll-brand mt-4 max-h-[55vh] space-y-2 overflow-y-auto pr-1">
           {candidates.length === 0 && <p className="py-8 text-center text-sm text-muted">{t("board.noCompatible")}</p>}
           {candidates.map(({ candidate, score, secondary }) => {
-            const athlete = getAtletaByBid(candidate.bid);
+            const athlete = athletes.get(candidate.bid);
             if (!athlete) return null;
-            const club = getClubeById(athlete.currentClubId);
             return (
               <button
                 key={candidate.bid}
@@ -50,10 +51,10 @@ export function SlotPicker({
                 onClick={() => onChoose(candidate.bid)}
                 className="flex w-full items-center gap-3 border border-border bg-background p-3 text-left transition-colors hover:border-brand/50 hover:bg-surface-hover"
               >
-                <ClubeCrest src={club?.webpCrestUrl ?? null} name={club?.name ?? "?"} size={34} />
+                <ClubeCrest src={athlete.currentClubCrestUrl} name={athlete.currentClubName ?? "?"} size={34} />
                 <span className="min-w-0 flex-1">
                   <span className="block truncate font-semibold">{athlete.name}</span>
-                  <span className="block text-xs text-muted">{athlete.mainPosition}{athlete.posicaoSecundaria ? ` · ${athlete.posicaoSecundaria}` : ""}</span>
+                  <span className="block text-xs text-muted">{athlete.mainPosition ?? "—"}{athlete.posicaoSecundaria ? ` · ${athlete.posicaoSecundaria}` : ""}</span>
                 </span>
                 {secondary && <Badge tone="warning">{t("board.secondary")}</Badge>}
                 <span className="rounded-lg bg-brand/15 px-2 py-1 text-sm font-extrabold text-brand">{Math.round(score)}</span>

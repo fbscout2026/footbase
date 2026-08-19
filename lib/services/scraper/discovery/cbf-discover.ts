@@ -31,14 +31,20 @@ import { forEachRateLimited } from "../rate-limit.ts";
 
 const USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36";
 
+// Confirmed live on the FMF adapter (Session 54): a plain `fetch()` with no timeout
+// can hang the whole executor forever on a single stalled request, silently stopping
+// every source behind it in the run. Same fix applied to every source's own
+// discovery `fetchText`/`fetchJson`/crest-fetch helper.
+const FETCH_TIMEOUT_MS = 30_000;
+
 async function fetchText(url: string): Promise<string> {
-  const res = await fetch(url, { headers: { "User-Agent": USER_AGENT } });
+  const res = await fetch(url, { headers: { "User-Agent": USER_AGENT }, signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
   if (!res.ok) throw new Error(`CBF fetch failed (${res.status}): ${url}`);
   return res.text();
 }
 
 async function fetchJson(url: string): Promise<unknown> {
-  const res = await fetch(url, { headers: { "User-Agent": USER_AGENT, Accept: "application/json" } });
+  const res = await fetch(url, { headers: { "User-Agent": USER_AGENT, Accept: "application/json" }, signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
   if (!res.ok) throw new Error(`CBF fetch failed (${res.status}): ${url}`);
   return res.json();
 }

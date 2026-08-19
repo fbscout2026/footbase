@@ -4,15 +4,10 @@ import Link from "next/link";
 import { Goal } from "lucide-react";
 import { useT } from "@/lib/i18n/I18nProvider";
 import { WidgetCard } from "./WidgetCard";
-import { mockAtletas, getClubeById } from "@/lib/mock-data";
+import type { ScorerRow } from "@/lib/services/dashboard";
 
-export function Artilheiros() {
+export function Artilheiros({ athletes: scorers }: { athletes: ScorerRow[] }) {
   const { t } = useT();
-
-  const scorers = [...mockAtletas]
-    .filter((a) => a.stats.totalGoals > 0)
-    .sort((a, b) => b.stats.totalGoals - a.stats.totalGoals)
-    .slice(0, 6);
 
   return (
     <WidgetCard
@@ -36,11 +31,11 @@ export function Artilheiros() {
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-medium">{a.name}</span>
                   <span className="block truncate text-xs text-muted">
-                    {getClubeById(a.currentClubId)?.name} · {a.currentCategory}
+                    {a.currentClubName ?? "—"} · {a.currentCategory ?? "—"}
                   </span>
                 </span>
                 <span className="shrink-0 text-sm font-bold">
-                  {a.stats.totalGoals}
+                  {a.goals}
                   <span className="ml-1 text-xs font-normal text-muted">
                     {t("hero.goals")}
                   </span>

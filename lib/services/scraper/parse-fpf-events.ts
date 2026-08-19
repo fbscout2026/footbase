@@ -64,6 +64,7 @@ interface GoalEvent {
 
 export interface FpfParsedAppearance {
   registro: string;
+  side: "home" | "away";
   playerCategory: string;
   minutesPlayed: number;
   goals: number;
@@ -158,6 +159,7 @@ export function buildFpfAppearances(
 
       appearances.push({
         registro: p.registro,
+        side,
         playerCategory: ctx.matchCategory,
         minutesPlayed,
         goals: goalsScored,

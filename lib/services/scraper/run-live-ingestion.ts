@@ -46,7 +46,10 @@ import { forEachRateLimited } from "./rate-limit.ts";
 import { discoverFpfCurrentRound, discoverFpfRound } from "./discovery/fpf-discover.ts";
 import { discoverCbfMatchesForPhase } from "./discovery/cbf-discover.ts";
 import { discoverFerjMonth, fetchFerjMatchPage } from "./discovery/ferj-discover.ts";
-import { recordScrapingJob } from "./scraping-jobs.ts";
+import { discoverFmfCompetition } from "./discovery/fmf-discover.ts";
+import { parseFmfSumula } from "./parse-fmf-sumula.ts";
+import { discoverFgfCompetition, fetchFgfSumulaUrl } from "./discovery/fgf-discover.ts";
+import { recordScrapingJob, getDoneJobRefs } from "./scraping-jobs.ts";
 import { createStealthSession, type StealthSession } from "./discovery/stealth-browser.ts";
 
 // ---- Config: every source this executor knows about today ------------------------
@@ -73,6 +76,18 @@ interface FerjSourceConfig {
   label: string;
   ano: number;
   meses: number[]; // FERJ discovery crawls the global /partidas listing month by month (see discovery/ferj-discover.ts)
+}
+
+interface FmfSourceConfig {
+  kind: "fmf";
+  label: string;
+  d: number; // ProxJogos.aspx?d={id} — one competition/division's full-season listing
+}
+
+interface FgfSourceConfig {
+  kind: "fgf";
+  label: string;
+  competitionId: number; // fgf.com.br/competicoes/amador/{id} — phases re-derived fresh every run
 }
 
 const FPF_SOURCES: FpfSourceConfig[] = [
@@ -192,10 +207,55 @@ const FERJ_SOURCES: FerjSourceConfig[] = [
   { kind: "ferj", label: "FERJ SUB-11..SUB-20", ano: currentYear(), meses: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12] },
 ];
 
+// One entry per competition/division `d` id — mapped live off fmf.com.br's own
+// "Competições" nav (Session 54), same method as CBF_SOURCES. The competition NAME
+// and category come from the súmula PDF's own "Competição:" header (parsed by
+// `parseFmfSumula`), so no label/category duplication is needed here beyond a
+// human-readable log tag. Feminino (`d=7,36,32,20`) is deliberately excluded — same
+// pre-existing project-wide decision as FERJ/FPF.
+//
+// ⚠️ YEARLY MAINTENANCE, same caveat as CBF_SOURCES — see that config's comment.
+const FMF_SOURCES: FmfSourceConfig[] = [
+  { kind: "fmf", label: "FMF SUB-13 1ª Divisão", d: 40 },
+  { kind: "fmf", label: "FMF SUB-13 2ª Divisão", d: 41 },
+  { kind: "fmf", label: "FMF SUB-14 1ª Divisão", d: 15 },
+  { kind: "fmf", label: "FMF SUB-14 2ª Divisão", d: 42 },
+  { kind: "fmf", label: "FMF Troféu Inconfidência SUB-14", d: 39 },
+  { kind: "fmf", label: "FMF SUB-15 1ª Divisão", d: 4 },
+  { kind: "fmf", label: "FMF SUB-15 2ª Divisão", d: 12 },
+  { kind: "fmf", label: "FMF Copa Inconfidência SUB-15", d: 33 },
+  { kind: "fmf", label: "FMF SUB-17 1ª Divisão", d: 5 },
+  { kind: "fmf", label: "FMF SUB-17 2ª Divisão", d: 13 },
+  { kind: "fmf", label: "FMF Copa Inconfidência SUB-17", d: 34 },
+  { kind: "fmf", label: "FMF SUB-20 1ª Divisão", d: 6 },
+  { kind: "fmf", label: "FMF SUB-20 2ª Divisão", d: 31 },
+  { kind: "fmf", label: "FMF Copa Inconfidência SUB-20", d: 35 },
+  { kind: "fmf", label: "FMF SFAC SUB-20 Módulo 1", d: 24 },
+  { kind: "fmf", label: "FMF SFAC SUB-20 Módulo 2", d: 25 },
+  { kind: "fmf", label: "FMF SFAC SUB-17", d: 26 },
+  { kind: "fmf", label: "FMF SFAC SUB-15", d: 27 },
+];
+
+// One entry per base competition, mapped live off fgf.com.br's own site (Session
+// 55). Unlike CBF_SOURCES/FMF_SOURCES, the competition ids here are NOT edition-
+// specific — `fgf.com.br/competicoes/amador/{id}` always resolves to (and exposes
+// the phase links for) the CURRENT season on its own, re-derived fresh every run —
+// **no yearly manual maintenance needed**, same guarantee as FERJ_SOURCES. Feminino
+// (`/competicoes/feminino/{id}`) is deliberately excluded — same pre-existing
+// project-wide decision as every other source.
+const FGF_SOURCES: FgfSourceConfig[] = [
+  { kind: "fgf", label: "FGF Gauchão Sub 20 A1", competitionId: 603 },
+  { kind: "fgf", label: "FGF Gauchão Sub 20 A2", competitionId: 614 },
+  { kind: "fgf", label: "FGF Gauchão Sub 17 A1", competitionId: 596 },
+  { kind: "fgf", label: "FGF Gauchão Sub 17 A2", competitionId: 602 },
+  { kind: "fgf", label: "FGF Gauchão Sub 15", competitionId: 62 },
+  { kind: "fgf", label: "FGF Gauchão Sub 13", competitionId: 717 },
+];
+
 export interface ExecutorItemResult {
   source: string;
   sourceUrl: string;
-  outcome: "ingested" | "reconciliation-failed" | "no-sumula-yet" | "fetch-failed" | "unresolved-players" | "write-failed";
+  outcome: "ingested" | "reconciliation-failed" | "no-sumula-yet" | "fetch-failed" | "unresolved-players" | "write-failed" | "skipped-already-done";
   detail: string;
 }
 
@@ -208,13 +268,15 @@ function loadEnvLocal(): void {
   }
 }
 
-async function processFpfSource(page: Page, admin: SupabaseClient, cfg: FpfSourceConfig, dryRun: boolean): Promise<ExecutorItemResult[]> {
+async function processFpfSource(page: Page, admin: SupabaseClient, cfg: FpfSourceConfig, dryRun: boolean, touch: () => void): Promise<ExecutorItemResult[]> {
   const results: ExecutorItemResult[] = [];
   const rodadaAtual = await discoverFpfCurrentRound(page, cfg);
+  touch();
 
   const rounds = Array.from({ length: rodadaAtual }, (_, i) => i + 1);
-  const roundBatches = await forEachRateLimited(rounds, (r) => discoverFpfRound(page, { ...cfg, rodada: r }), { minDelayMs: 800, jitterMs: 400 });
+  const roundBatches = await forEachRateLimited(rounds, (r) => discoverFpfRound(page, { ...cfg, rodada: r }), { minDelayMs: 800, jitterMs: 400, onItemDone: touch });
   const matches = roundBatches.flatMap((b) => b.result ?? []).filter((m) => m.linkSumula);
+  touch();
 
   const outcomes = await forEachRateLimited(
     matches,
@@ -230,7 +292,7 @@ async function processFpfSource(page: Page, admin: SupabaseClient, cfg: FpfSourc
         return { outcome: "reconciliation-failed" as const, detail: reconciliationErrors.join("; ") };
       }
       const { match, unresolved } = await buildParsedMatchFromFpf(admin, fpfMatch);
-      const report = await ingestMatch(admin, match, { dryRun });
+      const report = await ingestMatch(admin, match, { dryRun, allowPartialAppearances: unresolved.length > 0 });
       const detail = dryRun
         ? `plan: ${report.appearancesUpserted} atuações, ${report.athletesSeeded} atletas novos` +
           (unresolved.length ? `; ${unresolved.length} jogador(es) sem mapeamento ainda` : "")
@@ -240,7 +302,7 @@ async function processFpfSource(page: Page, admin: SupabaseClient, cfg: FpfSourc
       if (!dryRun && report.errors.length > 0) return { outcome: "write-failed" as const, detail };
       return { outcome: unresolved.length > 0 && match.appearances.length === 0 ? ("unresolved-players" as const) : ("ingested" as const), detail };
     },
-    { minDelayMs: 900, jitterMs: 400 },
+    { minDelayMs: 900, jitterMs: 400, onItemDone: touch },
   );
 
   for (let i = 0; i < matches.length; i++) {
@@ -248,29 +310,63 @@ async function processFpfSource(page: Page, admin: SupabaseClient, cfg: FpfSourc
     const outcome = o.error ? "fetch-failed" : o.result!.outcome;
     const detail = o.error ?? o.result!.detail;
     results.push({ source: cfg.label, sourceUrl: matches[i]!.linkSumula!, outcome, detail });
-    await recordScrapingJob(
-      admin,
-      { source: "FPF", jobType: "sumula", ref: String(matches[i]!.idJogo) },
-      outcome === "ingested" || outcome === "unresolved-players"
-        ? { status: "done", payload: { url: matches[i]!.linkSumula, competition: cfg.label } }
-        : { status: "failed", error: detail, payload: { url: matches[i]!.linkSumula, competition: cfg.label } },
-    );
+    // Only recorded on a LIVE run — Session 53, confirmed live: recording "done"
+    // during a dry-run (this used to run "regardless of dry-run/live") made the
+    // skip-already-done optimization permanently skip that item on every future
+    // LIVE run too, even though dry-run never actually writes anything. FERJ's
+    // first go-live wrote ZERO rows because every match had already been
+    // dry-run-tested in an earlier session. A dry-run's outcome is still visible
+    // in this run's own console summary — it just isn't persisted as a queue
+    // entry that later runs would treat as "safe to skip".
+    if (!dryRun) {
+      await recordScrapingJob(
+        admin,
+        { source: "FPF", jobType: "sumula", ref: String(matches[i]!.idJogo) },
+        outcome === "ingested" || outcome === "unresolved-players"
+          ? { status: "done", payload: { url: matches[i]!.linkSumula, competition: cfg.label } }
+          : { status: "failed", error: detail, payload: { url: matches[i]!.linkSumula, competition: cfg.label } },
+      );
+    }
   }
   return results;
 }
 
-async function processCbfSource(admin: SupabaseClient, cfg: CbfSourceConfig, dryRun: boolean): Promise<ExecutorItemResult[]> {
+async function processCbfSource(admin: SupabaseClient, cfg: CbfSourceConfig, dryRun: boolean, touch: () => void): Promise<ExecutorItemResult[]> {
   const results: ExecutorItemResult[] = [];
 
-  const phaseBatches = await forEachRateLimited(cfg.tabelaPhaseUrls, (u) => discoverCbfMatchesForPhase(u), { minDelayMs: 1000, jitterMs: 500 });
+  const phaseBatches = await forEachRateLimited(cfg.tabelaPhaseUrls, (u) => discoverCbfMatchesForPhase(u), { minDelayMs: 1000, jitterMs: 500, onItemDone: touch });
   const matchRefs = phaseBatches.flatMap((b) => b.result ?? []);
-  const withLinks = matchRefs.filter((ref): ref is typeof ref & { sumulaUrl: string } => !!ref.sumulaUrl);
+  const withLinksAll = matchRefs.filter((ref): ref is typeof ref & { sumulaUrl: string } => !!ref.sumulaUrl);
+  touch();
+
+  // Skip súmulas already processed successfully in a prior run — discovery itself
+  // stays cheap (JSON, not PDF) and always re-scans every round so newly-published
+  // results are never missed, but downloading+parsing+re-writing every match EVERY
+  // run doesn't scale for a twice-weekly cron once a season's worth of matches is
+  // already in (Session 52: confirmed live, a full 7-competition CBF run with no skip
+  // took ~95 minutes for 508 matches). A match only ever needs reprocessing if the
+  // CBF re-publishes a corrected súmula — out of scope for now, no periodic re-check.
+  const doneRefs = await getDoneJobRefs(admin, "CBF", "sumula");
+  const withLinks = withLinksAll.filter((ref) => !doneRefs.has(String(ref.idJogoGrande)));
+  const skipped = withLinksAll.length - withLinks.length;
+  if (skipped > 0) {
+    console.log(`[executor] CBF: ${cfg.label} — ${skipped} já processada(s), pulando`);
+    for (let i = 0; i < skipped; i++) results.push({ source: cfg.label, sourceUrl: "", outcome: "skipped-already-done", detail: "já processada em run anterior" });
+  }
 
   const outcomes = await forEachRateLimited(
     withLinks,
-    async ({ sumulaUrl: link }) => {
+    async ({ sumulaUrl: link, idClubeMandante, idClubeVisitante }) => {
       const text = await fetchSumulaText(link);
-      const { match } = parseCbfSumula(text, { sourceUrl: link });
+      const { match } = parseCbfSumula(text, {
+        sourceUrl: link,
+        // Real numeric CBF club ids (from discovery's jogos API) instead of the
+        // name-derived provisional key — this is also what makes the crest
+        // auto-download in `ingest.ts` possible (Session 52), since the escudo URL
+        // is keyed by this same id.
+        ...(idClubeMandante ? { homeSourceKey: `cbf:${idClubeMandante}` } : {}),
+        ...(idClubeVisitante ? { awaySourceKey: `cbf:${idClubeVisitante}` } : {}),
+      });
       const reconciliationErrors = reconcileParsedMatch(match);
       if (reconciliationErrors.length > 0) {
         return { outcome: "reconciliation-failed" as const, detail: reconciliationErrors.join("; ") };
@@ -289,7 +385,7 @@ async function processCbfSource(admin: SupabaseClient, cfg: CbfSourceConfig, dry
       if (!dryRun && report.errors.length > 0) return { outcome: "write-failed" as const, detail };
       return { outcome: "ingested" as const, detail };
     },
-    { minDelayMs: 900, jitterMs: 400 },
+    { minDelayMs: 900, jitterMs: 400, onItemDone: touch },
   );
 
   for (let i = 0; i < withLinks.length; i++) {
@@ -297,22 +393,41 @@ async function processCbfSource(admin: SupabaseClient, cfg: CbfSourceConfig, dry
     const outcome = o.error ? "fetch-failed" : o.result!.outcome;
     const detail = o.error ?? o.result!.detail;
     results.push({ source: cfg.label, sourceUrl: withLinks[i]!.sumulaUrl, outcome, detail });
-    await recordScrapingJob(
-      admin,
-      { source: "CBF", jobType: "sumula", ref: String(withLinks[i]!.idJogoGrande) },
-      outcome === "ingested"
-        ? { status: "done", payload: { url: withLinks[i]!.sumulaUrl, competition: cfg.label } }
-        : { status: "failed", error: detail, payload: { url: withLinks[i]!.sumulaUrl, competition: cfg.label } },
-    );
+    // See the FPF processor's identical fix (Session 53) — only recorded on a
+    // LIVE run, never during dry-run (a dry-run "done" wrongly made the
+    // skip-already-done optimization skip that item forever, on every future
+    // live run too, even though nothing was actually written).
+    if (!dryRun) {
+      await recordScrapingJob(
+        admin,
+        { source: "CBF", jobType: "sumula", ref: String(withLinks[i]!.idJogoGrande) },
+        outcome === "ingested"
+          ? { status: "done", payload: { url: withLinks[i]!.sumulaUrl, competition: cfg.label } }
+          : { status: "failed", error: detail, payload: { url: withLinks[i]!.sumulaUrl, competition: cfg.label } },
+      );
+    }
   }
   return results;
 }
 
-async function processFerjSource(admin: SupabaseClient, cfg: FerjSourceConfig, dryRun: boolean): Promise<ExecutorItemResult[]> {
+async function processFerjSource(admin: SupabaseClient, cfg: FerjSourceConfig, dryRun: boolean, touch: () => void): Promise<ExecutorItemResult[]> {
   const results: ExecutorItemResult[] = [];
 
-  const monthBatches = await forEachRateLimited(cfg.meses, (mes) => discoverFerjMonth(mes, cfg.ano), { minDelayMs: 700, jitterMs: 300 });
-  const matchRefs = monthBatches.flatMap((b) => b.result ?? []);
+  const monthBatches = await forEachRateLimited(cfg.meses, (mes) => discoverFerjMonth(mes, cfg.ano), { minDelayMs: 700, jitterMs: 300, onItemDone: touch });
+  const matchRefsAll = monthBatches.flatMap((b) => b.result ?? []);
+
+  // Same skip-already-done optimization as the CBF processor (Session 52) — see its
+  // comment for why. FERJ discovery has no separate "has a súmula link" filter step
+  // (that check happens per-item below, since a missing súmula is legitimately
+  // "not published yet", not a permanent skip), so this filters the raw match list.
+  const doneRefs = await getDoneJobRefs(admin, "FERJ", "sumula");
+  touch();
+  const matchRefs = matchRefsAll.filter((ref) => !doneRefs.has(String(ref.matchId)));
+  const skipped = matchRefsAll.length - matchRefs.length;
+  if (skipped > 0) {
+    console.log(`[executor] FERJ: ${cfg.label} — ${skipped} já processada(s), pulando`);
+    for (let i = 0; i < skipped; i++) results.push({ source: cfg.label, sourceUrl: "", outcome: "skipped-already-done", detail: "já processada em run anterior" });
+  }
 
   const outcomes = await forEachRateLimited(
     matchRefs,
@@ -328,7 +443,7 @@ async function processFerjSource(admin: SupabaseClient, cfg: FerjSourceConfig, d
         return { outcome: "reconciliation-failed" as const, detail: reconciliationErrors.join("; "), sourceUrl: sumulaPdfUrl };
       }
       const { match, unresolved } = await buildParsedMatchFromFerj(admin, ferjMatch);
-      const report = await ingestMatch(admin, match, { dryRun });
+      const report = await ingestMatch(admin, match, { dryRun, allowPartialAppearances: unresolved.length > 0 });
       const detail = dryRun
         ? `plan: ${report.appearancesUpserted} atuações, ${report.athletesSeeded} atletas novos` +
           (unresolved.length ? `; ${unresolved.length} jogador(es) sem mapeamento ainda` : "")
@@ -339,7 +454,7 @@ async function processFerjSource(admin: SupabaseClient, cfg: FerjSourceConfig, d
       const outcome = unresolved.length > 0 && match.appearances.length === 0 ? ("unresolved-players" as const) : ("ingested" as const);
       return { outcome, detail, sourceUrl: sumulaPdfUrl };
     },
-    { minDelayMs: 900, jitterMs: 400 },
+    { minDelayMs: 900, jitterMs: 400, onItemDone: touch },
   );
 
   for (let i = 0; i < matchRefs.length; i++) {
@@ -348,15 +463,252 @@ async function processFerjSource(admin: SupabaseClient, cfg: FerjSourceConfig, d
     const detail = o.error ?? o.result!.detail;
     const sourceUrl = o.error ? "" : o.result!.sourceUrl;
     results.push({ source: cfg.label, sourceUrl, outcome, detail });
-    await recordScrapingJob(
-      admin,
-      { source: "FERJ", jobType: "sumula", ref: String(matchRefs[i]!.matchId) },
-      outcome === "ingested" || outcome === "unresolved-players"
-        ? { status: "done", payload: { url: sourceUrl, competition: cfg.label } }
-        : { status: "failed", error: detail, payload: { url: sourceUrl, competition: cfg.label } },
-    );
+    // See the CBF/FPF processors' identical fix (Session 53) — only recorded on
+    // a LIVE run. This is exactly the bug that made FERJ's actual go-live write
+    // zero rows: every match had already been dry-run-tested in an earlier
+    // session, which used to mark them "done" and made the skip-optimization
+    // permanently skip them on the real live run too.
+    if (!dryRun) {
+      await recordScrapingJob(
+        admin,
+        { source: "FERJ", jobType: "sumula", ref: String(matchRefs[i]!.matchId) },
+        outcome === "ingested" || outcome === "unresolved-players"
+          ? { status: "done", payload: { url: sourceUrl, competition: cfg.label } }
+          : { status: "failed", error: detail, payload: { url: sourceUrl, competition: cfg.label } },
+      );
+    }
   }
   return results;
+}
+
+async function processFmfSource(admin: SupabaseClient, cfg: FmfSourceConfig, dryRun: boolean, touch: () => void): Promise<ExecutorItemResult[]> {
+  const results: ExecutorItemResult[] = [];
+
+  const matchRefsAll = await discoverFmfCompetition(cfg.d);
+  touch();
+
+  // Same skip-already-done optimization as CBF (Session 52) — discovery itself is one
+  // cheap full-season page fetch (not per-round like CBF/FERJ), so it always re-scans
+  // everything; only downloading+parsing+re-writing an already-processed súmula is
+  // skipped.
+  const doneRefs = await getDoneJobRefs(admin, "FMF", "sumula");
+  touch();
+  const matchRefs = matchRefsAll.filter((ref) => !doneRefs.has(String(ref.matchId)));
+  const skipped = matchRefsAll.length - matchRefs.length;
+  if (skipped > 0) {
+    console.log(`[executor] FMF: ${cfg.label} — ${skipped} já processada(s), pulando`);
+    for (let i = 0; i < skipped; i++) results.push({ source: cfg.label, sourceUrl: "", outcome: "skipped-already-done", detail: "já processada em run anterior" });
+  }
+
+  const outcomes = await forEachRateLimited(
+    matchRefs,
+    async (ref) => {
+      const text = await fetchSumulaText(ref.sumulaUrl);
+      // FMF's roster carries the athlete's real CBF bid directly (confirmed live,
+      // Session 54) — no identity crosswalk/bridge needed, same shape as CBF itself,
+      // unlike FPF/FERJ's Registro/BIRA bridge. Some roster players still have NO bid
+      // at all though — confirmed live: a minority in the "official" federated
+      // divisions (registration pending), and the large majority in the SFAC amateur
+      // divisions (players never register with the CBF at all). `parseFmfSumula`
+      // already drops those from `athletes`/`appearances` rather than inventing an
+      // identity — an undercount vs. the súmula's own goal total is then EXPECTED
+      // whenever an unresolved player scored, same reasoning as FPF/FERJ's bridge
+      // (see `reconciliation.ts`'s `allowPartialAppearances` doc).
+      const { match, roster, isWalkover } = parseFmfSumula(text, {
+        sourceUrl: ref.sumulaUrl,
+        homeSourceKey: `fmf:${ref.homeClubId}`,
+        awaySourceKey: `fmf:${ref.awayClubId}`,
+        homeCrestUrl: ref.homeCrestUrl,
+        awayCrestUrl: ref.awayCrestUrl,
+      });
+      const unresolvedCount = [...roster.home, ...roster.away].filter((p) => p.bid == null).length;
+      // A walkover has an official score but genuinely no gameplay to reconcile
+      // against (see `parseFmfSumula`'s doc) — relax the same checks as an
+      // unresolved-identity match, for a different underlying reason.
+      const allowPartial = unresolvedCount > 0 || isWalkover;
+      const reconciliationErrors = reconcileParsedMatch(match, { allowPartialAppearances: allowPartial });
+      if (reconciliationErrors.length > 0) {
+        return { outcome: "reconciliation-failed" as const, detail: reconciliationErrors.join("; ") };
+      }
+      const report = await ingestMatch(admin, match, { dryRun, allowPartialAppearances: allowPartial });
+      const detail = dryRun
+        ? `plan: ${report.appearancesUpserted} atuações, ${report.athletesSeeded} atletas novos` +
+          (unresolvedCount ? `; ${unresolvedCount} jogador(es) sem BID da CBF` : "") +
+          (isWalkover ? "; W.O." : "")
+        : `gravado: ${report.appearancesUpserted} atuações` + (report.errors.length ? `; erros: ${report.errors.join("; ")}` : "");
+      // See the CBF processor's identical fix (Session 50) — a live write that threw
+      // inside `ingestMatch` must never come back bucketed as "ingested".
+      if (!dryRun && report.errors.length > 0) return { outcome: "write-failed" as const, detail };
+      const outcome = allowPartial && match.appearances.length === 0 ? ("unresolved-players" as const) : ("ingested" as const);
+      return { outcome, detail };
+    },
+    { minDelayMs: 900, jitterMs: 400, onItemDone: touch },
+  );
+
+  for (let i = 0; i < matchRefs.length; i++) {
+    const o = outcomes[i]!;
+    const outcome = o.error ? "fetch-failed" : o.result!.outcome;
+    const detail = o.error ?? o.result!.detail;
+    results.push({ source: cfg.label, sourceUrl: matchRefs[i]!.sumulaUrl, outcome, detail });
+    if (!dryRun) {
+      await recordScrapingJob(
+        admin,
+        { source: "FMF", jobType: "sumula", ref: String(matchRefs[i]!.matchId) },
+        outcome === "ingested" || outcome === "unresolved-players"
+          ? { status: "done", payload: { url: matchRefs[i]!.sumulaUrl, competition: cfg.label } }
+          : { status: "failed", error: detail, payload: { url: matchRefs[i]!.sumulaUrl, competition: cfg.label } },
+      );
+    }
+  }
+  return results;
+}
+
+function fgfClubSlug(name: string): string {
+  return name
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+async function processFgfSource(admin: SupabaseClient, cfg: FgfSourceConfig, dryRun: boolean, touch: () => void): Promise<ExecutorItemResult[]> {
+  const results: ExecutorItemResult[] = [];
+
+  const matchRefsAll = await discoverFgfCompetition(cfg.competitionId);
+  touch();
+
+  // Same skip-already-done optimization as every other source — `matchUrl` (the
+  // match page's own URL slug) is the stable ref: FGF exposes no numeric match id to
+  // `fetch` (the in-page "JOGO: N" number is only unique within one competition).
+  const doneRefs = await getDoneJobRefs(admin, "FGF", "sumula");
+  const matchRefs = matchRefsAll.filter((ref) => !doneRefs.has(ref.matchUrl));
+  const skipped = matchRefsAll.length - matchRefs.length;
+  if (skipped > 0) {
+    console.log(`[executor] FGF: ${cfg.label} — ${skipped} já processada(s), pulando`);
+    for (let i = 0; i < skipped; i++) results.push({ source: cfg.label, sourceUrl: "", outcome: "skipped-already-done", detail: "já processada em run anterior" });
+  }
+
+  const outcomes = await forEachRateLimited(
+    matchRefs,
+    async (ref) => {
+      const sumulaUrl = await fetchFgfSumulaUrl(ref.matchUrl);
+      if (!sumulaUrl) return { outcome: "no-sumula-yet" as const, detail: "no súmula link on the match page yet", sourceUrl: "" };
+
+      const text = await fetchSumulaText(sumulaUrl);
+      // FGF's roster carries the athlete's real CBF bid directly (same "SÚMULA
+      // ON-LINE" template CBF's own competitions use — see discovery/fgf-discover.ts's
+      // module doc) — no identity crosswalk/bridge needed, same shape as CBF/FMF.
+      const { match } = parseCbfSumula(text, {
+        sourceUrl: sumulaUrl,
+        homeSourceKey: `fgf-club:${fgfClubSlug(ref.homeName)}`,
+        awaySourceKey: `fgf-club:${fgfClubSlug(ref.awayName)}`,
+        homeCrestUrl: ref.homeCrestUrl,
+        awayCrestUrl: ref.awayCrestUrl,
+      });
+      const reconciliationErrors = reconcileParsedMatch(match);
+      if (reconciliationErrors.length > 0) {
+        return { outcome: "reconciliation-failed" as const, detail: reconciliationErrors.join("; "), sourceUrl: sumulaUrl };
+      }
+      const report = await ingestMatch(admin, match, { dryRun });
+      const detail = dryRun
+        ? `plan: ${report.appearancesUpserted} atuações, ${report.athletesSeeded} atletas novos`
+        : `gravado: ${report.appearancesUpserted} atuações` + (report.errors.length ? `; erros: ${report.errors.join("; ")}` : "");
+      // See the CBF processor's identical fix (Session 50) — a live write that threw
+      // inside `ingestMatch` must never come back bucketed as "ingested".
+      if (!dryRun && report.errors.length > 0) return { outcome: "write-failed" as const, detail, sourceUrl: sumulaUrl };
+      return { outcome: "ingested" as const, detail, sourceUrl: sumulaUrl };
+    },
+    { minDelayMs: 900, jitterMs: 400, onItemDone: touch },
+  );
+
+  for (let i = 0; i < matchRefs.length; i++) {
+    const o = outcomes[i]!;
+    const outcome = o.error ? "fetch-failed" : o.result!.outcome;
+    const detail = o.error ?? o.result!.detail;
+    const sourceUrl = o.error ? "" : o.result!.sourceUrl;
+    results.push({ source: cfg.label, sourceUrl, outcome, detail });
+    if (!dryRun) {
+      await recordScrapingJob(
+        admin,
+        { source: "FGF", jobType: "sumula", ref: matchRefs[i]!.matchUrl },
+        outcome === "ingested"
+          ? { status: "done", payload: { url: sourceUrl, competition: cfg.label } }
+          : { status: "failed", error: detail, payload: { url: sourceUrl, competition: cfg.label } },
+      );
+    }
+  }
+  return results;
+}
+
+// Confirmed live (Session 54, continuation): even with a timeout on every individual
+// `fetch()` (discovery, súmula, crest), a source can still hang the ENTIRE executor
+// indefinitely for reasons no per-request timeout catches. A `try/catch` around a
+// source's own processing NEVER helps here either — a Promise that never resolves
+// never throws.
+//
+// Explicit product requirement (Session 54): the executor must NEVER get stuck, full
+// stop. A blunt total-duration timeout (`Promise.race` against a single fixed
+// deadline) doesn't fit that: the largest real competition seen (~98 súmulas, rate-
+// limited ~1.1s apart + real write time) legitimately takes minutes end to end, so a
+// short fixed ceiling would kill genuinely-progressing work, not just real hangs. An
+// INACTIVITY watchdog solves both at once — `touch()` resets the clock on every real
+// checkpoint (discovery done, done-refs loaded, every single súmula processed), so a
+// competition that's actively working never trips it no matter how long it
+// legitimately takes in total, while one that goes fully silent gets abandoned within
+// `idleMs` of its LAST heartbeat.
+//
+// ⚠️ CORRECTION (measured live, same continuation): an earlier version of this
+// comment blamed a 20s ceiling's real trips on "accumulated local network/handle
+// state" — WRONG. A single real `ingestMatch()` call (the first match of a brand new
+// tournament: creates the torneio, upserts clubs, writes ~33 `atuacoes_sumula` rows
+// one at a time) was directly measured at 19.6s end to end, with both clubs already
+// existing (no crest download involved) — genuinely working the whole time, not
+// stuck. `onItemDone` only fires once a WHOLE item (fetch+parse+ingest) finishes, so
+// a single item legitimately taking closer to `idleMs` than expected trips the
+// watchdog mid-item on real, correct work — a false positive, not a caught hang. The
+// three "stuck" competitions from that session were never actually hung; every retry
+// was silently re-doing real work the previous attempt had already half-finished.
+// `idleMs` must stay safely above the slowest plausible SINGLE item (first match of
+// a new tournament + a from-scratch crest download, i.e. up to ~20s DB work + ~30s
+// crest fetch timeout, stacked) — 90s keeps a wide margin over that measured/derived
+// worst case while remaining "seconds, not minutes" for an actual dead hang.
+const WATCHDOG_IDLE_MS = 90_000;
+
+interface Watchdog {
+  /** Call at every real checkpoint (discovery done, one item processed, ...). */
+  touch: () => void;
+  /** Races `promise` against the idle timer; rejects if `touch()` isn't called for `idleMs`. */
+  guard: <T>(promise: Promise<T>) => Promise<T>;
+}
+
+function createWatchdog(idleMs: number, label: string): Watchdog {
+  let lastActivity = Date.now();
+  return {
+    touch: () => {
+      lastActivity = Date.now();
+    },
+    guard: <T>(promise: Promise<T>) =>
+      new Promise<T>((resolve, reject) => {
+        const check = setInterval(() => {
+          const idleFor = Date.now() - lastActivity;
+          if (idleFor >= idleMs) {
+            clearInterval(check);
+            reject(new Error(`sem atividade por ${Math.round(idleFor / 1000)}s (abandonado, será retentado no próximo run): ${label}`));
+          }
+        }, 1000);
+        promise.then(
+          (v) => {
+            clearInterval(check);
+            resolve(v);
+          },
+          (e) => {
+            clearInterval(check);
+            reject(e);
+          },
+        );
+      }),
+  };
 }
 
 async function main(): Promise<void> {
@@ -402,7 +754,8 @@ async function main(): Promise<void> {
         headless: process.env.HEADLESS !== "false",
         sessionCookiePath: ".fpf-session-cookies.json",
       });
-      allResults.push(...(await processFpfSource(stealthSession.page, admin, cfg, dryRun)));
+      const wd = createWatchdog(WATCHDOG_IDLE_MS, `FPF ${cfg.label}`);
+      allResults.push(...(await wd.guard(processFpfSource(stealthSession.page, admin, cfg, dryRun, wd.touch))));
     } catch (e) {
       // Isolated per source, same principle as `forEachRateLimited`'s per-item
       // isolation: one broken source (e.g. FPF's Cloudflare block) must never abort
@@ -422,7 +775,8 @@ async function main(): Promise<void> {
   for (const cfg of cbfSourcesToRun) {
     console.log(`[executor] CBF: ${cfg.label}`);
     try {
-      allResults.push(...(await processCbfSource(admin, cfg, dryRun)));
+      const wd = createWatchdog(WATCHDOG_IDLE_MS, `CBF ${cfg.label}`);
+      allResults.push(...(await wd.guard(processCbfSource(admin, cfg, dryRun, wd.touch))));
     } catch (e) {
       console.error(`[executor] CBF source failed entirely: ${cfg.label} —`, e instanceof Error ? e.message : e);
     }
@@ -431,21 +785,57 @@ async function main(): Promise<void> {
   for (const cfg of onlySource && onlySource !== "ferj" ? [] : FERJ_SOURCES) {
     console.log(`[executor] FERJ: ${cfg.label}`);
     try {
-      allResults.push(...(await processFerjSource(admin, cfg, dryRun)));
+      const wd = createWatchdog(WATCHDOG_IDLE_MS, `FERJ ${cfg.label}`);
+      allResults.push(...(await wd.guard(processFerjSource(admin, cfg, dryRun, wd.touch))));
     } catch (e) {
       console.error(`[executor] FERJ source failed entirely: ${cfg.label} —`, e instanceof Error ? e.message : e);
+    }
+  }
+
+  const fmfSourcesToRun = (onlySource && onlySource !== "fmf" ? [] : FMF_SOURCES).filter(
+    (cfg) => !onlyCompetition || cfg.label.toLowerCase().includes(onlyCompetition),
+  );
+  for (const cfg of fmfSourcesToRun) {
+    console.log(`[executor] FMF: ${cfg.label}`);
+    try {
+      const wd = createWatchdog(WATCHDOG_IDLE_MS, `FMF ${cfg.label}`);
+      allResults.push(...(await wd.guard(processFmfSource(admin, cfg, dryRun, wd.touch))));
+    } catch (e) {
+      console.error(`[executor] FMF source failed entirely: ${cfg.label} —`, e instanceof Error ? e.message : e);
+    }
+  }
+
+  const fgfSourcesToRun = (onlySource && onlySource !== "fgf" ? [] : FGF_SOURCES).filter(
+    (cfg) => !onlyCompetition || cfg.label.toLowerCase().includes(onlyCompetition),
+  );
+  for (const cfg of fgfSourcesToRun) {
+    console.log(`[executor] FGF: ${cfg.label}`);
+    try {
+      const wd = createWatchdog(WATCHDOG_IDLE_MS, `FGF ${cfg.label}`);
+      allResults.push(...(await wd.guard(processFgfSource(admin, cfg, dryRun, wd.touch))));
+    } catch (e) {
+      console.error(`[executor] FGF source failed entirely: ${cfg.label} —`, e instanceof Error ? e.message : e);
     }
   }
 
   const byOutcome = new Map<string, number>();
   for (const r of allResults) byOutcome.set(r.outcome, (byOutcome.get(r.outcome) ?? 0) + 1);
   console.log("\n[executor] resumo:", Object.fromEntries(byOutcome));
-  for (const r of allResults.filter((r) => r.outcome !== "ingested")) {
+  for (const r of allResults.filter((r) => r.outcome !== "ingested" && r.outcome !== "skipped-already-done")) {
     console.log(`  [${r.outcome}] ${r.source} — ${r.sourceUrl}\n    ${r.detail}`);
   }
 }
 
-main().catch((e) => {
-  console.error("[executor] fatal:", e);
-  process.exitCode = 1;
-});
+main()
+  .then(() => {
+    // A source abandoned by `withTimeout` (see its doc) may leave a hung network
+    // handle Node's event loop would otherwise wait on forever even though every
+    // useful result is already logged above — force a clean exit instead of a
+    // silent, invisible hang after the real work is done (Session 54: this is the
+    // exact "never allowed to get stuck" requirement, applied to the process itself).
+    process.exit(0);
+  })
+  .catch((e) => {
+    console.error("[executor] fatal:", e);
+    process.exit(1);
+  });

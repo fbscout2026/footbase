@@ -7,7 +7,7 @@ import { ClubeCrest } from "@/components/app/ClubeCrest";
 import { cn } from "@/lib/cn";
 import { useT } from "@/lib/i18n/I18nProvider";
 import type { TranslationKey } from "@/lib/i18n/dictionaries";
-import { getClubeById, type MockAtleta } from "@/lib/mock-data";
+import type { AtletaRecord } from "@/lib/services/atletas";
 import {
   comparisonMetrics,
   getWinningBids,
@@ -17,7 +17,7 @@ import {
 
 const groups: ComparisonGroup[] = ["profile", "performance", "special"];
 
-export function AtletaComparisonMatrix({ atletas }: { atletas: MockAtleta[] }) {
+export function AtletaComparisonMatrix({ atletas }: { atletas: AtletaRecord[] }) {
   const { t, locale } = useT();
 
   if (atletas.length < 2) {
@@ -52,22 +52,19 @@ export function AtletaComparisonMatrix({ atletas }: { atletas: MockAtleta[] }) {
               <th className="sticky left-0 z-20 w-52 min-w-52 bg-surface px-4 py-4 text-left text-xs font-semibold uppercase text-muted">
                 {t("compare.metric")}
               </th>
-              {atletas.map((atleta) => {
-                const club = getClubeById(atleta.currentClubId);
-                return (
-                  <th key={atleta.bid} className="min-w-60 border-l border-border px-4 py-4 text-left align-top">
-                    <Link href={`/atletas/${atleta.bid}`} className="group flex items-center gap-3">
-                      <ClubeCrest src={club?.webpCrestUrl ?? null} name={club?.name ?? "?"} size={38} />
-                      <span className="min-w-0">
-                        <span className="block truncate font-bold group-hover:text-brand">{atleta.name}</span>
-                        <span className="block text-xs font-normal text-muted">
-                          BID {atleta.bid} · {atleta.mainPosition} · {atleta.currentCategory}
-                        </span>
+              {atletas.map((atleta) => (
+                <th key={atleta.bid} className="min-w-60 border-l border-border px-4 py-4 text-left align-top">
+                  <Link href={`/atletas/${atleta.bid}`} className="group flex items-center gap-3">
+                    <ClubeCrest src={atleta.currentClubCrestUrl} name={atleta.currentClubName ?? "?"} size={38} />
+                    <span className="min-w-0">
+                      <span className="block truncate font-bold group-hover:text-brand">{atleta.name}</span>
+                      <span className="block text-xs font-normal text-muted">
+                        BID {atleta.bid} · {atleta.mainPosition ?? "—"} · {atleta.currentCategory ?? "—"}
                       </span>
-                    </Link>
-                  </th>
-                );
-              })}
+                    </span>
+                  </Link>
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody>
@@ -88,7 +85,7 @@ function ComparisonGroupRows({
   formatValue,
 }: {
   group: ComparisonGroup;
-  atletas: MockAtleta[];
+  atletas: AtletaRecord[];
   formatValue: (value: string | number | null, format: ComparisonFormat) => string;
 }) {
   const { t } = useT();

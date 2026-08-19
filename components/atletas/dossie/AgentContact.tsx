@@ -2,17 +2,16 @@
 
 import { Mail, Phone, MessageCircle, Instagram, Youtube } from "lucide-react";
 import { useT } from "@/lib/i18n/I18nProvider";
-import { getAgenteById } from "@/lib/mock-data";
+import type { AgenteContactRecord } from "@/lib/services/atletas";
 
 export function AgentContact({
-  agentId,
+  agent,
   youtubeUrl,
 }: {
-  agentId: string | null;
+  agent: AgenteContactRecord | null;
   youtubeUrl: string | null;
 }) {
   const { t } = useT();
-  const agent = getAgenteById(agentId);
 
   if (!agent) {
     return <p className="text-sm text-muted">{t("dossie.agent.none")}</p>;

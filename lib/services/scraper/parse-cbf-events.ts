@@ -46,11 +46,13 @@ function section(text: string, startRe: RegExp, endRe: RegExp): string {
  * "12:00"+"2T" → 57; "+5"/"+05:00"+"2T" → 90 (end of half); "20:00"+"1T" → 20;
  * "-"+"INT" → 45 (a substitution made at the half-time break itself, no exact
  * minute given — confirmed live, Session 44: the time column reads a literal "-").
+ * `period` starts with "2" ("2T" normally, or a bare "2" — see `goalRe`'s doc for why).
  */
 function timeline(rawTime: string, period: string): number {
   if (period === "INT") return HALF;
-  const base = period === "2T" ? HALF : 0;
-  if (rawTime.trim().startsWith("+")) return period === "2T" ? FULL : HALF;
+  const isSecondHalf = period.startsWith("2");
+  const base = isSecondHalf ? HALF : 0;
+  if (rawTime.trim().startsWith("+")) return isSecondHalf ? FULL : HALF;
   const mm = parseInt(rawTime, 10);
   return base + (Number.isFinite(mm) ? mm : 0);
 }
@@ -111,18 +113,44 @@ export function buildAppearances(
   const teamToken = `(?:${escapeRegExp(homePrefix)}|${escapeRegExp(awayPrefix)})`;
 
   // --- Goals ---------------------------------------------------------------
+  // The period token is normally "1T"/"2T" (confirmed for CBF's own súmulas and for
+  // this same PDF's OWN Cartões/Substituições sections), but a real FGF súmula
+  // (same underlying template, served from `conteudo.cbf.com.br/federacoes/{id}/`)
+  // renders the "T" as dropped specifically in the Gols table's column — "111NR"
+  // (period "1", shirt "11", type "NR"), not "1T11NR".
+  //
+  // A "+MM" stoppage-time entry needs its OWN, stricter period rule: real CBF data
+  // keeps the full "2T" there ("+52T13NR" = "+5", "2T", shirt 13, "NR" — confirmed
+  // against a real CBF fixture), but a real FGF one can OMIT the period digit
+  // entirely ("+1210PN..." = "+12", shirt 10, "PN", no period at all — confirmed
+  // against a real fixture, cross-checked: shirt 10 is independently confirmed via
+  // that same match's Cartões section). Accepting a BARE "1"/"2" as period after a
+  // "+" (as an earlier version of this regex did, mirroring the colon-time branch)
+  // is fatally ambiguous whenever the shirt itself starts with that same digit —
+  // greedy backtracking "finds" period="1" + shirt="0" (a shirt on no real roster),
+  // silently dropping the real shirt's goal instead of throwing. Requiring the FULL
+  // "1T"/"2T" (never a bare digit) specifically in the "+" branch resolves both real
+  // shapes correctly: CBF's still matches (it always has the "T"), FGF's period
+  // group simply doesn't match at all (correctly leaving all the digits for shirt).
+  // `timeline()` defaults to 1st-half when no period was captured — same behavior as
+  // before this fix, and correct whenever a period WAS present and got matched.
   const goalsBlock = section(text, /Gols\s*Tempo/i, /NR\s*=\s*Normal|Cartões|Comissão/i);
-  const goalRe = new RegExp(`(\\+?\\d+(?::\\d{2})?)\\s*(1T|2T)\\s*(\\d{1,2})\\s*(NR|PN|CT|FT).*?(${teamToken})`, "g");
+  const goalRe = new RegExp(
+    `(?:(\\d{1,2}:\\d{2})\\s*(1T?|2T?)|(\\+\\d{1,2})\\s*(1T|2T)?)\\s*(\\d{1,2})\\s*(NR|PN|CT|FT).*?(${teamToken})`,
+    "g",
+  );
   const goals: GoalEvent[] = [];
   for (const m of goalsBlock.matchAll(goalRe)) {
-    const scorer = sideOf(m[5]!);
-    const ownGoal = m[4] === "CT";
+    const rawTime = m[1] ?? m[3]!;
+    const period = m[2] ?? m[4] ?? "";
+    const scorer = sideOf(m[7]!);
+    const ownGoal = m[6] === "CT";
     goals.push({
       scorer,
-      shirt: Number(m[3]!),
+      shirt: Number(m[5]!),
       ownGoal,
       beneficiary: ownGoal ? (scorer === "home" ? "away" : "home") : scorer,
-      at: timeline(m[1]!, m[2]!),
+      at: timeline(rawTime, period),
     });
   }
 
@@ -199,6 +227,7 @@ export function buildAppearances(
 
       appearances.push({
         bid: p.bid,
+        side,
         playerCategory: ctx.matchCategory,
         minutesPlayed,
         goals: goalsScored,

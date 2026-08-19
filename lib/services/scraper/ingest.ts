@@ -1,8 +1,54 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { mkdirSync, writeFileSync } from "node:fs";
 import type { IngestReport, ParsedMatch } from "./types.ts";
 import { validateParsedMatch } from "./validate.ts";
 import { reconcileParsedMatch } from "./reconciliation.ts";
 import { assertLiveIngestionAllowed } from "./ingestion-gate.ts";
+import { fetchCbfCrestWebp } from "./cbf-crest.ts";
+import { fetchWikipediaCrestWebp } from "./wikipedia-crest.ts";
+import { fetchCrestWebpFromUrl } from "./crest-fetch.ts";
+import { CURATED_WIKIPEDIA_CREST_BY_CBF_SOURCE_KEY } from "./curated-crest-sources.ts";
+
+// Only clubs seeded with a REAL numeric CBF club id (`cbf:{id}` — wired once the
+// discovery layer supplies `idClubeMandante`/`idClubeVisitante`, Session 52) have a
+// known escudo URL derivable by formula; provisional/other-source clubs are
+// skipped, not guessed at.
+const CBF_CLUB_SOURCE_KEY_RE = /^cbf:(\d+)$/;
+
+/**
+ * Baixa e grava o escudo oficial do clube pra um clube recém-upsertado, se ainda
+ * não tiver um (nunca sobrescreve um `webp_crest_url` já existente — pode ter
+ * sido curado manualmente). Nunca lança: escudo é melhoria visual, não pode
+ * derrubar a ingestão da partida.
+ *
+ * Convenção fixada pelo usuário (Session 52) — vale pra QUALQUER fonte nova, não
+ * só CBF: assim que uma federação é ligada, seu escudo já vem automático desde o
+ * primeiro PR, nunca como retrabalho depois. Três estratégias, na ordem:
+ *   1. `crestUrl` que a própria fonte já entrega (ex.: FERJ traz a URL real do
+ *      escudo direto no HTML da súmula — não precisa nem sabe formular).
+ *   2. Lista curada da Wikipédia (só CBF por ora — fundo transparente de
+ *      verdade pros clubes profissionais bem conhecidos).
+ *   3. CDN oficial da própria fonte por fórmula (só CBF por ora, `{id}/escudo.jpg`
+ *      — sem transparência, mas nunca falta).
+ */
+async function ensureClubCrest(admin: SupabaseClient, clubId: string, sourceKey: string, currentCrestUrl: string | null, directCrestUrl: string | null | undefined, fileNamePrefix: string): Promise<void> {
+  if (currentCrestUrl) return;
+  try {
+    const curatedTitle = CURATED_WIKIPEDIA_CREST_BY_CBF_SOURCE_KEY[sourceKey];
+    const cbfMatch = sourceKey.match(CBF_CLUB_SOURCE_KEY_RE);
+    const webp =
+      (directCrestUrl ? await fetchCrestWebpFromUrl(directCrestUrl) : null) ??
+      (curatedTitle ? await fetchWikipediaCrestWebp(curatedTitle) : null) ??
+      (cbfMatch ? await fetchCbfCrestWebp(Number(cbfMatch[1]!)) : null);
+    if (!webp) return;
+    const fileName = `${fileNamePrefix}.webp`;
+    mkdirSync("public/crests", { recursive: true });
+    writeFileSync(`public/crests/${fileName}`, webp);
+    await admin.from("clubes").update({ webp_crest_url: `/crests/${fileName}` }).eq("id", clubId);
+  } catch {
+    // escudo é melhoria visual — qualquer falha (rede, sharp, disco) é silenciosamente ignorada
+  }
+}
 
 // Phase 6.1 orchestrator (format-agnostic). Idempotent upserts keyed by the stable
 // keys: torneios (find-or-create by name+federation+year+category), clubes.source_key,
@@ -13,7 +59,7 @@ import { assertLiveIngestionAllowed } from "./ingestion-gate.ts";
 //
 // Contract: the scraper NEVER overwrites user-governed data (posse, favoritos,
 // correções, decisões admin). It only touches institutional fields it owns.
-export async function ingestMatch(admin: SupabaseClient, parsed: ParsedMatch, opts: { dryRun: boolean }): Promise<IngestReport> {
+export async function ingestMatch(admin: SupabaseClient, parsed: ParsedMatch, opts: { dryRun: boolean; allowPartialAppearances?: boolean }): Promise<IngestReport> {
   const report: IngestReport = {
     dryRun: opts.dryRun,
     scrapingLogId: null,
@@ -34,7 +80,7 @@ export async function ingestMatch(admin: SupabaseClient, parsed: ParsedMatch, op
 
   // Semantic reconciliation (6.5): a mismatch here means a degraded parse / layout
   // change. Surfaced in both modes; on a live run it blocks the write below.
-  const reconciliationErrors = reconcileParsedMatch(parsed);
+  const reconciliationErrors = reconcileParsedMatch(parsed, { allowPartialAppearances: opts.allowPartialAppearances });
   report.errors.push(...reconciliationErrors);
 
   // Which appearance BIDs can we resolve to a real atleta row? Existing rows + any
@@ -77,11 +123,24 @@ export async function ingestMatch(admin: SupabaseClient, parsed: ParsedMatch, op
   try {
     // Resolve tournament (find-or-create; torneios has no unique key).
     let torneioId: string;
-    const found = await admin.from("torneios").select("id").eq("name", t.name).eq("federation", t.federation).eq("year", t.year).eq("category", t.category).maybeSingle();
+    const found = await admin.from("torneios").select("id,federacao_id").eq("name", t.name).eq("federation", t.federation).eq("year", t.year).eq("category", t.category).maybeSingle();
     if (found.error) throw found.error;
-    if (found.data) torneioId = String(found.data.id);
-    else {
-      const created = await admin.from("torneios").insert({ name: t.name, federation: t.federation, year: t.year, category: t.category }).select("id").single();
+    // `federacoes.sigla` matches the source's federation code ("CBF"/"FPF"/"FERJ") —
+    // without this FK the Torneios explorer's federação/categoria filter (which
+    // matches on `federacao_id`) silently returns zero results for every ingested
+    // tournament, even though the tournament itself is visible (Session 52, reported
+    // live: national-federation filter showed categories but the results list stayed
+    // empty). A source whose federação isn't seeded yet (e.g. before FERJ's row
+    // exists) just leaves it null — never blocks ingestion.
+    const fed = await admin.from("federacoes").select("id").eq("sigla", t.federation).maybeSingle();
+    const federacaoId = fed.data ? String(fed.data.id) : null;
+    if (found.data) {
+      torneioId = String(found.data.id);
+      if (federacaoId && !found.data.federacao_id) {
+        await admin.from("torneios").update({ federacao_id: federacaoId }).eq("id", torneioId);
+      }
+    } else {
+      const created = await admin.from("torneios").insert({ name: t.name, federation: t.federation, year: t.year, category: t.category, federacao_id: federacaoId }).select("id").single();
       if (created.error) throw created.error;
       torneioId = String(created.data.id);
     }
@@ -91,10 +150,11 @@ export async function ingestMatch(admin: SupabaseClient, parsed: ParsedMatch, op
     const clubIds: Record<"home" | "away", string> = { home: "", away: "" };
     for (const side of ["home", "away"] as const) {
       const c = parsed[side];
-      const up = await admin.from("clubes").upsert({ source_key: c.sourceKey, name: c.name, state: c.state ?? null, federacao: c.federacao ?? null }, { onConflict: "source_key" }).select("id").single();
+      const up = await admin.from("clubes").upsert({ source_key: c.sourceKey, name: c.name, state: c.state ?? null, federacao: c.federacao ?? null }, { onConflict: "source_key" }).select("id,webp_crest_url").single();
       if (up.error) throw up.error;
       clubIds[side] = String(up.data.id);
       report.clubsUpserted++;
+      await ensureClubCrest(admin, clubIds[side], c.sourceKey, up.data.webp_crest_url, c.crestUrl, c.sourceKey.replace(":", "-"));
     }
 
     // Seed missing athletes and refresh existing ones ("súmula/fonte vence"): the
@@ -145,6 +205,26 @@ export async function ingestMatch(admin: SupabaseClient, parsed: ParsedMatch, op
       const ins = await admin.from("atuacoes_sumula").upsert(rows, { onConflict: "partida_id,bid_atleta" }).select("id");
       if (ins.error) throw ins.error;
       report.appearancesUpserted = rows.length;
+    }
+
+    // Keep `atletas.current_club_id`/`current_category` up to date from this match's
+    // appearances (Session 52: these were never written anywhere — every scraped
+    // athlete had a null "current club" forever, which silently broke squad listings
+    // and `view_clube_resumo`'s athlete counts even though the match/appearance data
+    // itself was correct). Only updates when THIS match is the athlete's most recent
+    // one on record (derived from the ground truth in `atuacoes_sumula`/
+    // `partidas_sumula`, not from processing order — matches aren't necessarily
+    // (re)ingested chronologically), so an older match reprocessed later never
+    // clobbers a club a player has since transferred to.
+    for (const a of parsed.appearances) {
+      if (!resolvableBids.has(a.bid) || !a.side) continue;
+      const clubId = clubIds[a.side];
+      const { data: newer } = await admin
+        .from("atuacoes_sumula").select("id, partidas_sumula!inner(match_date)")
+        .eq("bid_atleta", a.bid).gt("partidas_sumula.match_date", parsed.matchDate).limit(1).maybeSingle();
+      if (newer) continue; // a more recent match already set the current club/category
+      const upd = await admin.from("atletas").update({ current_club_id: clubId, current_category: parsed.matchCategory }).eq("bid", a.bid);
+      if (upd.error) throw upd.error;
     }
 
     const status = report.errors.length > 0 ? "partial" : "success";

@@ -30,7 +30,11 @@ export interface RateLimitOptions {
 export async function forEachRateLimited<T, R>(
   items: T[],
   fn: (item: T, index: number) => Promise<R>,
-  opts: RateLimitOptions = {},
+  opts: RateLimitOptions & {
+    /** Called after every item finishes (success or failure) — lets a caller reset
+     * an inactivity watchdog on real progress instead of a blunt total-duration cap. */
+    onItemDone?: () => void;
+  } = {},
 ): Promise<{ item: T; result: R | null; error: string | null }[]> {
   const minDelayMs = opts.minDelayMs ?? 700;
   const jitterMs = opts.jitterMs ?? 300;
@@ -44,6 +48,7 @@ export async function forEachRateLimited<T, R>(
     } catch (e) {
       out.push({ item, result: null, error: e instanceof Error ? e.message : String(e) });
     }
+    opts.onItemDone?.();
     if (i < items.length - 1) {
       await sleep(minDelayMs + Math.random() * jitterMs);
     }

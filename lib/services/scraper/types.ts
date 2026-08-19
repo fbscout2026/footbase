@@ -18,6 +18,11 @@ export interface ParsedClub {
   name: string;
   state?: string | null; // UF
   federacao?: string | null;
+  // Real crest URL straight from the source, when the source's own page/API
+  // exposes one directly (e.g. FERJ's match page <img src>) — as opposed to a
+  // formula `ingest.ts` can derive on its own from the numeric id (CBF's
+  // `{id}/escudo.jpg`, no field needed here for that case).
+  crestUrl?: string | null;
 }
 
 // Athletes are keyed by CBF BID. `birthDate` comes from the CBF athlete profile
@@ -41,6 +46,13 @@ export interface ParsedAppearance {
   yellowCards: number; // 0..2
   redCards: number; // 0..1
   cleanSheet: boolean;
+  // Which of ParsedMatch's two clubs this athlete played for — optional (not every
+  // builder/fixture sets it) so it stays backward-compatible; when present, `ingest.ts`
+  // uses it to keep `atletas.current_club_id`/`current_category` up to date (Session
+  // 52: these were never written by the scraper, so every ingested athlete had a null
+  // "current club", which silently broke squad listings and `view_clube_resumo`'s
+  // athlete counts even though match/appearance data itself was correct).
+  side?: "home" | "away";
 }
 
 export interface ParsedMatch {

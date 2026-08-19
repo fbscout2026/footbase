@@ -8,7 +8,7 @@ import { useT } from "@/lib/i18n/I18nProvider";
 import type { TranslationKey } from "@/lib/i18n/dictionaries";
 import { Badge } from "@/components/ui/Badge";
 import { ClubeCrest } from "@/components/app/ClubeCrest";
-import { getClubeById, type MockAtleta } from "@/lib/mock-data";
+import type { AtletaRecord } from "@/lib/services/atletas";
 import { formatMonthYear } from "@/lib/format";
 import { FavoriteButton } from "@/components/favorites/FavoriteButton";
 
@@ -23,15 +23,19 @@ const CONTRACT_TONE = {
   free_agent: "brand",
 } as const;
 
-function sortValue(a: MockAtleta, key: SortKey): string | number {
+// Possibly-null fields sort as the largest value (a sentinel, never a real bid/
+// age/height) so unknowns land at the end on ascending sort — real scraped
+// athletes are missing most biographic fields, and this is friendlier than
+// having "—" rows scattered by JS's default (inconsistent) null ordering.
+function sortValue(a: AtletaRecord, key: SortKey): string | number {
   switch (key) {
     case "name": return a.name;
-    case "mainPosition": return a.mainPosition;
-    case "age": return a.age;
-    case "currentCategory": return a.currentCategory;
-    case "heightCm": return a.heightCm;
-    case "dominantFoot": return a.dominantFoot;
-    case "club": return getClubeById(a.currentClubId)?.name ?? "";
+    case "mainPosition": return a.mainPosition ?? "￿";
+    case "age": return a.age ?? Number.MAX_SAFE_INTEGER;
+    case "currentCategory": return a.currentCategory ?? "￿";
+    case "heightCm": return a.heightCm ?? Number.MAX_SAFE_INTEGER;
+    case "dominantFoot": return a.dominantFoot ?? "￿";
+    case "club": return a.currentClubName ?? "￿";
     case "matches": return a.stats.totalMatches;
     case "goals": return a.stats.totalGoals;
     case "assists": return a.stats.totalAssists;
@@ -39,7 +43,7 @@ function sortValue(a: MockAtleta, key: SortKey): string | number {
   }
 }
 
-export function AtletasTable({ atletas }: { atletas: MockAtleta[] }) {
+export function AtletasTable({ atletas }: { atletas: AtletaRecord[] }) {
   const { t } = useT();
   const router = useRouter();
   const [sortKey, setSortKey] = useState<SortKey>("goals");
@@ -119,7 +123,6 @@ export function AtletasTable({ atletas }: { atletas: MockAtleta[] }) {
         </thead>
         <tbody>
           {sorted.map((a, i) => {
-            const club = getClubeById(a.currentClubId);
             return (
               <tr
                 key={a.bid}
@@ -132,7 +135,7 @@ export function AtletasTable({ atletas }: { atletas: MockAtleta[] }) {
                 </td>
                 <td className="px-3 py-2">
                   <div className="flex items-center gap-2">
-                    <ClubeCrest src={club?.webpCrestUrl ?? null} name={club?.name ?? "?"} size={22} />
+                    <ClubeCrest src={a.currentClubCrestUrl} name={a.currentClubName ?? "?"} size={22} />
                     <div className="min-w-0">
                       <Link
                         href={`/atletas/${a.bid}`}
@@ -145,13 +148,13 @@ export function AtletasTable({ atletas }: { atletas: MockAtleta[] }) {
                     </div>
                   </div>
                 </td>
-                <td className="px-3 py-2 text-center">{a.mainPosition}</td>
-                <td className="px-3 py-2 text-center">{a.age}</td>
-                <td className="px-3 py-2 text-center">{a.currentCategory}</td>
-                <td className="px-3 py-2 text-center">{a.heightCm}</td>
-                <td className="px-3 py-2 text-center">{t(`foot.${a.dominantFoot}` as TranslationKey)}</td>
+                <td className="px-3 py-2 text-center">{a.mainPosition ?? "—"}</td>
+                <td className="px-3 py-2 text-center">{a.age ?? "—"}</td>
+                <td className="px-3 py-2 text-center">{a.currentCategory ?? "—"}</td>
+                <td className="px-3 py-2 text-center">{a.heightCm ?? "—"}</td>
+                <td className="px-3 py-2 text-center">{a.dominantFoot ? t(`foot.${a.dominantFoot}` as TranslationKey) : "—"}</td>
                 <td className="px-3 py-2">
-                  <span className="truncate text-muted">{club?.name}</span>
+                  <span className="truncate text-muted">{a.currentClubName ?? "—"}</span>
                 </td>
                 <td className="px-3 py-2 text-center">{a.stats.totalMatches}</td>
                 <td className="px-3 py-2 text-center font-semibold">{a.stats.totalGoals}</td>

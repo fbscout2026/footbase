@@ -27,6 +27,11 @@ type Side = "home" | "away";
 export interface FerjMatchTeam {
   name: string; // full display name, e.g. "E.C Nova Cidade" — NOT the PDF's short form
   clubId: number; // FERJ's own numeric club id (the crest image's `data-id`)
+  // Real crest URL straight from the match page's own <img src> — NOT derivable
+  // from `clubId` by a formula (confirmed live: `data-id="916"` but the crest
+  // file is `img_icone_929.jpg` — the ids don't match), so it has to be
+  // captured here, unlike the CBF crest (which IS a `{id}/escudo.jpg` formula).
+  crestUrl: string | null;
 }
 
 interface RawEvent {
@@ -121,6 +126,7 @@ function timeline(minute: number | null, period: RawEvent["period"]): number {
 
 export interface FerjParsedAppearance {
   bira: string;
+  side: "home" | "away";
   playerCategory: string;
   minutesPlayed: number;
   goals: number;
@@ -243,6 +249,7 @@ export function buildFerjAppearances(
 
       appearances.push({
         bira: p.bira,
+        side,
         playerCategory: ctx.matchCategory,
         minutesPlayed,
         goals: goalsScored,
@@ -273,18 +280,21 @@ export function parseFerjTeams(html: string): { home: FerjMatchTeam; away: FerjM
   // "Futebol  Clube") that `stripTags`'s `\s+`-collapse already normalizes away on the
   // `<h1>` side but a plain `.trim()` here didn't touch — either mismatch alone
   // silently failed to resolve that team's crest id.
-  const crestRe = /alt="([^"]+)" data-id="(\d+)"/g;
-  const ids = new Map<string, number>();
+  const crestRe = /alt="([^"]+)" data-id="(\d+)"[^>]*?src="([^"]+)"/g;
+  const ids = new Map<string, { clubId: number; crestUrl: string }>();
   for (const m of html.matchAll(crestRe)) {
     const name = m[1]!.replace(/\s+/g, " ").trim();
-    if (!ids.has(name)) ids.set(name, Number(m[2]!));
+    if (!ids.has(name)) ids.set(name, { clubId: Number(m[2]!), crestUrl: m[3]! });
   }
 
-  const homeId = ids.get(homeName);
-  const awayId = ids.get(awayName);
-  if (homeId == null || awayId == null) throw new Error("could not resolve both teams' crest data-id");
+  const home = ids.get(homeName);
+  const away = ids.get(awayName);
+  if (!home || !away) throw new Error("could not resolve both teams' crest data-id");
 
-  return { home: { name: homeName, clubId: homeId }, away: { name: awayName, clubId: awayId } };
+  return {
+    home: { name: homeName, clubId: home.clubId, crestUrl: home.crestUrl },
+    away: { name: awayName, clubId: away.clubId, crestUrl: away.crestUrl },
+  };
 }
 
 // --- Composer: PDF (header + roster) + HTML (teams + events) → FerjParsedMatch ------
@@ -292,6 +302,7 @@ export function parseFerjTeams(html: string): { home: FerjMatchTeam; away: FerjM
 export interface FerjParsedClub {
   name: string;
   clubId: number; // FERJ's own numeric club id — sourceKey is `ferj:{clubId}`
+  crestUrl: string | null;
 }
 
 export interface FerjParsedAthlete {
@@ -348,8 +359,8 @@ export function buildFerjSumula(pdf: FerjSumulaPdf, html: string, opts: BuildFer
     matchDate: pdf.header.matchDate,
     matchCategory: pdf.header.category,
     rodada: pdf.header.rodada,
-    home: { name: teams.home.name, clubId: teams.home.clubId },
-    away: { name: teams.away.name, clubId: teams.away.clubId },
+    home: { name: teams.home.name, clubId: teams.home.clubId, crestUrl: teams.home.crestUrl },
+    away: { name: teams.away.name, clubId: teams.away.clubId, crestUrl: teams.away.crestUrl },
     homeScore: pdf.header.homeScore,
     awayScore: pdf.header.awayScore,
     sourceUrl: opts.sourceUrl ?? null,

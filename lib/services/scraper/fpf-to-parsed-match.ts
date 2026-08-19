@@ -50,6 +50,7 @@ export async function buildParsedMatchFromFpf(
     }
     appearances.push({
       bid,
+      side: a.side,
       playerCategory: a.playerCategory,
       minutesPlayed: a.minutesPlayed,
       goals: a.goals,

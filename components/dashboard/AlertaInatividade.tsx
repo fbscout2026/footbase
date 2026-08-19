@@ -5,10 +5,10 @@ import { BellRing } from "lucide-react";
 import { useT } from "@/lib/i18n/I18nProvider";
 import { WidgetCard } from "./WidgetCard";
 import { Badge } from "@/components/ui/Badge";
-import { inactiveAtletas, getClubeById } from "@/lib/mock-data";
+import type { InactiveRow } from "@/lib/services/dashboard";
 import { formatDate } from "@/lib/format";
 
-export function AlertaInatividade() {
+export function AlertaInatividade({ athletes: inactiveAtletas }: { athletes: InactiveRow[] }) {
   const { t } = useT();
 
   return (
@@ -30,13 +30,13 @@ export function AlertaInatividade() {
                 <span className="min-w-0">
                   <span className="block truncate text-sm font-medium">{a.name}</span>
                   <span className="block truncate text-xs text-muted">
-                    {getClubeById(a.currentClubId)?.name} · {a.currentCategory}
+                    {a.currentClubName ?? "—"} · {a.currentCategory ?? "—"}
                   </span>
                 </span>
                 <Badge tone="danger">
                   {t("dashboard.inactivity.lastMatch")}:{" "}
-                  {a.stats.lastMatchDate
-                    ? formatDate(a.stats.lastMatchDate)
+                  {a.lastMatchDate
+                    ? formatDate(a.lastMatchDate)
                     : t("dashboard.inactivity.never")}
                 </Badge>
               </Link>

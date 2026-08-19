@@ -5,9 +5,9 @@ import { UserMinus } from "lucide-react";
 import { useT } from "@/lib/i18n/I18nProvider";
 import { WidgetCard } from "./WidgetCard";
 import { Badge } from "@/components/ui/Badge";
-import { freeAgentAtletas, getClubeById } from "@/lib/mock-data";
+import type { ScorerRow } from "@/lib/services/dashboard";
 
-export function AgentesLivres() {
+export function AgentesLivres({ athletes: freeAgentAtletas }: { athletes: ScorerRow[] }) {
   const { t } = useT();
 
   return (
@@ -29,7 +29,7 @@ export function AgentesLivres() {
                 <span className="min-w-0">
                   <span className="block truncate text-sm font-medium">{a.name}</span>
                   <span className="block truncate text-xs text-muted">
-                    {getClubeById(a.currentClubId)?.name} · {a.currentCategory}
+                    {a.currentClubName ?? "—"} · {a.currentCategory ?? "—"}
                   </span>
                 </span>
                 <Badge tone="brand">{t("dashboard.freeAgents.badge")}</Badge>

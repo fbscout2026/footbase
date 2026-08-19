@@ -38,6 +38,7 @@ export async function buildParsedMatchFromFerj(admin: SupabaseClient, ferjMatch:
     }
     appearances.push({
       bid,
+      side: a.side,
       playerCategory: a.playerCategory,
       minutesPlayed: a.minutesPlayed,
       goals: a.goals,
@@ -53,8 +54,8 @@ export async function buildParsedMatchFromFerj(admin: SupabaseClient, ferjMatch:
     matchDate: ferjMatch.matchDate,
     matchCategory: ferjMatch.matchCategory,
     rodada: ferjMatch.rodada,
-    home: { sourceKey: `ferj:${ferjMatch.home.clubId}`, name: ferjMatch.home.name, state: "RJ", federacao: "FERJ" },
-    away: { sourceKey: `ferj:${ferjMatch.away.clubId}`, name: ferjMatch.away.name, state: "RJ", federacao: "FERJ" },
+    home: { sourceKey: `ferj:${ferjMatch.home.clubId}`, name: ferjMatch.home.name, state: "RJ", federacao: "FERJ", crestUrl: ferjMatch.home.crestUrl },
+    away: { sourceKey: `ferj:${ferjMatch.away.clubId}`, name: ferjMatch.away.name, state: "RJ", federacao: "FERJ", crestUrl: ferjMatch.away.crestUrl },
     homeScore: ferjMatch.homeScore,
     awayScore: ferjMatch.awayScore,
     sourceUrl: ferjMatch.sourceUrl,

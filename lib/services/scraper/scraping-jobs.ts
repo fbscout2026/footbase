@@ -67,3 +67,23 @@ export async function recordScrapingJob(admin: SupabaseClient, key: ScrapingJobK
     console.error(`[scraping_jobs] failed to record ${key.source}/${key.jobType}/${key.ref}:`, e instanceof Error ? e.message : e);
   }
 }
+
+/**
+ * Refs already marked `done` for a (source, job_type) pair — used to skip
+ * re-downloading+re-parsing a súmula the executor already processed successfully in
+ * a prior run (Session 52: a twice-weekly cron only makes sense once it isn't
+ * re-fetching the WHOLE season every time, which is what happened before this
+ * existed — a full CBF run took ~95 minutes for 508 matches with no skip at all).
+ * Returns an empty set (never throws) on a lookup failure — the caller falls back to
+ * "reprocess everything", which is correct-but-slow, never wrong.
+ */
+export async function getDoneJobRefs(admin: SupabaseClient, source: string, jobType: string): Promise<Set<string>> {
+  try {
+    const { data, error } = await admin.from("scraping_jobs").select("ref").eq("source", source).eq("job_type", jobType).eq("status", "done");
+    if (error) throw error;
+    return new Set((data ?? []).map((r) => String(r.ref)));
+  } catch (e) {
+    console.error(`[scraping_jobs] failed to load done refs for ${source}/${jobType}:`, e instanceof Error ? e.message : e);
+    return new Set();
+  }
+}

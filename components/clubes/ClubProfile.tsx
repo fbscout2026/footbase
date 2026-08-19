@@ -23,7 +23,7 @@ export function ClubProfile({ initialData }: { initialData: ClubProfileData }) {
     <div className="space-y-5">
       <section className="matchday-surface p-5 sm:p-7">
         <div className="flex flex-wrap items-start justify-between gap-5">
-          <div className="flex items-center gap-4"><ClubeCrest src={club.crestUrl} name={club.name} size={72} /><div><div className="mb-2 flex items-center gap-2 text-brand"><Building2 size={17} /><span className="text-xs font-extrabold uppercase tracking-widest">{t("clubs.profile")}</span></div><h1 className="matchday-heading text-3xl sm:text-4xl">{club.name}</h1><p className="mt-1 text-sm text-muted">{[club.state, club.federation].filter(Boolean).join(" · ") || t("common.notInformed")}</p></div></div>
+          <div className="flex items-center gap-4"><ClubeCrest src={club.crestUrl} name={club.name} size={72} /><div><div className="mb-2 flex items-center gap-2 text-brand"><Building2 size={17} /><span className="text-xs font-extrabold uppercase tracking-widest">{t("clubs.profile")}</span></div><h1 className="matchday-heading text-3xl sm:text-4xl uppercase">{club.name}</h1><p className="mt-1 text-sm text-muted">{[club.state, club.federation].filter(Boolean).join(" · ") || t("common.notInformed")}</p></div></div>
           <Badge tone={club.claimStatus === "claimed" ? "brand" : club.claimStatus === "pending" ? "warning" : "neutral"}>{t(`clubs.status.${club.claimStatus}`)}</Badge>
         </div>
         <div className="mt-6 grid gap-3 sm:grid-cols-3"><Metric value={club.athleteCount} label={t("clubs.athletes")} /><Metric value={club.activeCategories.length} label={t("clubs.categories")} /><Metric value={club.tournaments.length} label={t("clubs.tournaments")} /></div>

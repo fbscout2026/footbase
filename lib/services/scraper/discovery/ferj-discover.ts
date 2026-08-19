@@ -28,8 +28,12 @@ import { forEachRateLimited } from "../rate-limit.ts";
 
 const USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36";
 
+// See fmf-discover.ts's identical comment — confirmed live that an untimed `fetch()`
+// can hang the whole executor forever on one stalled request.
+const FETCH_TIMEOUT_MS = 30_000;
+
 async function fetchText(url: string): Promise<string> {
-  const res = await fetch(url, { headers: { "User-Agent": USER_AGENT } });
+  const res = await fetch(url, { headers: { "User-Agent": USER_AGENT }, signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
   if (!res.ok) throw new Error(`FERJ fetch failed (${res.status}): ${url}`);
   return res.text();
 }

@@ -952,12 +952,18 @@ create policy profiles_insert_admin on profiles
 -- clubes: readable by approved accounts; ONLY admin/service writes (no manual
 -- creation; ownership is applied by admin on claim approval).
 create policy clubes_select_approved on clubes
-  for select using (private.is_approved() or private.is_admin());
+  -- Wrapped in `(select ...)` (Session 52, applied live via `alter policy`): lets
+  -- Postgres evaluate the RLS check once per query (InitPlan) instead of once per
+  -- row — confirmed live, this was the difference between a dashboard query on
+  -- `view_atleta_resumo` (LATERAL-joins into clubes/atletas/atuacoes/partidas)
+  -- succeeding in ~2s vs a `statement timeout` past a few thousand rows. Applies
+  -- to every `*_select_approved` policy on the tables that view touches.
+  for select using ((select private.is_approved()) or (select private.is_admin()));
 create policy clubes_write_admin on clubes
   for all using (private.is_admin()) with check (private.is_admin());
 
 create policy torneios_select_approved on torneios
-  for select using (private.is_approved() or private.is_admin());
+  for select using ((select private.is_approved()) or (select private.is_admin()));
 create policy torneios_write_admin on torneios
   for all using (private.is_admin()) with check (private.is_admin());
 
@@ -986,7 +992,7 @@ create policy agentes_update_own_or_admin on agentes
 -- atletas: readable by approved; writes gated by the trigger, RLS admits the
 -- two writer classes (admin + verified claiming agent).
 create policy atletas_select_approved on atletas
-  for select using (private.is_approved() or private.is_admin());
+  for select using ((select private.is_approved()) or (select private.is_admin()));
 create policy atletas_insert_admin on atletas
   for insert with check (private.is_admin());
 create policy atletas_update_admin_or_claiming_agent on atletas
@@ -1014,13 +1020,13 @@ create policy atletas_delete_admin on atletas
 
 -- conquistas: readable by approved; admin-only writes.
 create policy conquistas_select_approved on conquistas
-  for select using (private.is_approved() or private.is_admin());
+  for select using ((select private.is_approved()) or (select private.is_admin()));
 create policy conquistas_write_admin on conquistas
   for all using (private.is_admin()) with check (private.is_admin());
 
 -- historico_clubes: readable by approved; ingestion/admin-only writes.
 create policy historico_select_approved on historico_clubes
-  for select using (private.is_approved() or private.is_admin());
+  for select using ((select private.is_approved()) or (select private.is_admin()));
 create policy historico_write_admin on historico_clubes
   for all using (private.is_admin()) with check (private.is_admin());
 
@@ -1043,12 +1049,12 @@ create policy atleta_fontes_write_admin on atleta_fontes
 
 -- partidas_sumula / atuacoes_sumula: read for approved; ingestion-only writes.
 create policy partidas_select_approved on partidas_sumula
-  for select using (private.is_approved() or private.is_admin());
+  for select using ((select private.is_approved()) or (select private.is_admin()));
 create policy partidas_write_admin on partidas_sumula
   for all using (private.is_admin()) with check (private.is_admin());
 
 create policy atuacoes_select_approved on atuacoes_sumula
-  for select using (private.is_approved() or private.is_admin());
+  for select using ((select private.is_approved()) or (select private.is_admin()));
 create policy atuacoes_write_admin on atuacoes_sumula
   for all using (private.is_admin()) with check (private.is_admin());
 

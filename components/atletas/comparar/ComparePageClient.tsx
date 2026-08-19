@@ -6,13 +6,13 @@ import { ChevronLeft, GitCompareArrows } from "lucide-react";
 import { AtletaCompareSelector } from "@/components/atletas/comparar/AtletaCompareSelector";
 import { AtletaComparisonMatrix } from "@/components/atletas/comparar/AtletaComparisonMatrix";
 import { useT } from "@/lib/i18n/I18nProvider";
-import { getAtletaByBid } from "@/lib/mock-data";
+import type { AtletaRecord } from "@/lib/services/atletas";
 import { serializeComparisonBids } from "@/lib/atleta-comparison";
 
-export function ComparePageClient({ initialBids }: { initialBids: number[] }) {
+export function ComparePageClient({ initialBids, atletas }: { initialBids: number[]; atletas: AtletaRecord[] }) {
   const { t } = useT();
   const router = useRouter();
-  const atletas = initialBids.map(getAtletaByBid).filter((a) => a !== undefined);
+  const namesByBid = Object.fromEntries(atletas.map((a) => [a.bid, a.name]));
 
   function updateBids(bids: number[]) {
     const serialized = serializeComparisonBids(bids);
@@ -36,7 +36,7 @@ export function ComparePageClient({ initialBids }: { initialBids: number[] }) {
         </div>
       </div>
 
-      <AtletaCompareSelector selectedBids={initialBids} onChange={updateBids} />
+      <AtletaCompareSelector selectedBids={initialBids} selectedNames={namesByBid} onChange={updateBids} />
       <AtletaComparisonMatrix atletas={atletas} />
     </div>
   );
