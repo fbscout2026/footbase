@@ -46,6 +46,13 @@ export function AppNav() {
             <Link
               key={it.href}
               href={it.href}
+              // Full prefetch (not just the static shell) — every tab is
+              // visible in the nav bar at once, so this warms the Router
+              // Cache for all of them right away (paired with
+              // `experimental.staleTimes` in next.config.ts): a click on an
+              // already-prefetched tab is served straight from cache
+              // instead of re-running the layout + page server-side.
+              prefetch={true}
               className={cn(
                 "whitespace-nowrap border-b-2 px-3 py-3 text-xs font-extrabold uppercase tracking-wider transition-colors",
                 active

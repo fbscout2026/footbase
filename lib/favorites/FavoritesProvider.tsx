@@ -1,9 +1,10 @@
 "use client";
 
-import { createContext, useContext, useMemo, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useSession } from "@/lib/auth/SessionProvider";
 import {
+  listFavorites,
   removeFavorite as removeFavoriteRequest,
   upsertFavorite,
   type FavoriteRecord,
@@ -15,6 +16,7 @@ interface FavoritesContextValue {
   saveFavorite: (bid: number, rating: number, notes: string | null) => Promise<void>;
   removeFavorite: (bid: number) => Promise<void>;
   savingBid: number | null;
+  loadFailed: boolean;
 }
 
 const FavoritesContext = createContext<FavoritesContextValue | null>(null);
@@ -23,14 +25,39 @@ export function FavoritesProvider({
   initialFavorites,
   children,
 }: {
-  initialFavorites: FavoriteRecord[];
+  initialFavorites: FavoriteRecord[] | null;
   children: React.ReactNode;
 }) {
   const { userId } = useSession();
   const client = useMemo(() => createClient(), []);
-  const [favorites, setFavorites] = useState(initialFavorites);
+  const [favorites, setFavorites] = useState(initialFavorites ?? []);
   const [savingBid, setSavingBid] = useState<number | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
   const mutationInFlight = useRef(false);
+
+  // `initialFavorites === null` means the layout didn't fetch this server-side
+  // (Session 55: it used to `await listFavorites(...)` before rendering
+  // ANYTHING, adding a full extra round-trip to every cold navigation) — fetch
+  // it here instead, off the critical path. The nav/page render immediately
+  // with an empty favorites state (hearts briefly show "not favorited"), then
+  // fill in a moment later once this resolves.
+  useEffect(() => {
+    if (initialFavorites !== null) return;
+    let cancelled = false;
+    listFavorites(client, userId)
+      .then((data) => {
+        if (!cancelled) setFavorites(data);
+      })
+      .catch(() => {
+        if (!cancelled) setLoadFailed(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // Only ever runs once per mount (per `key={session.userId}` on the
+    // provider) — `initialFavorites` is a stable prop, not a dependency.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [client, userId]);
 
   function getFavorite(bid: number) {
     return favorites.find((favorite) => favorite.bid === bid);
@@ -80,7 +107,7 @@ export function FavoritesProvider({
   }
 
   return (
-    <FavoritesContext.Provider value={{ favorites, getFavorite, saveFavorite, removeFavorite, savingBid }}>
+    <FavoritesContext.Provider value={{ favorites, getFavorite, saveFavorite, removeFavorite, savingBid, loadFailed }}>
       {children}
     </FavoritesContext.Provider>
   );

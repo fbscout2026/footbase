@@ -12,6 +12,10 @@ import type { AtletaRecord } from "@/lib/services/atletas";
 import { formatMonthYear } from "@/lib/format";
 import { FavoriteButton } from "@/components/favorites/FavoriteButton";
 
+// The parent (`AtletasExplorer`) already hands this table exactly one page's
+// worth of athletes (20, via real server-side pagination) — this component
+// only sorts what it's given, no pagination of its own.
+
 type SortKey =
   | "name" | "mainPosition" | "age" | "currentCategory" | "heightCm"
   | "dominantFoot" | "club" | "matches" | "goals" | "assists" | "contract";

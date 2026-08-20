@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import type { PointerEvent as ReactPointerEvent, MouseEvent as ReactMouseEvent } from "react";
 import { LayoutGrid, LoaderCircle, Minus, Plus, RefreshCw, ShieldAlert, Users } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Select } from "@/components/ui/Select";
@@ -54,6 +55,77 @@ export function TacticalBoardClient({
   const mutationInFlight = useRef(false);
   const confirmedBoardName = useRef(board.name);
   const slots = FORMATION_SLOTS[formation];
+
+  // Organic zoom/pan on top of the +/- buttons (which keep their fixed 60–140%,
+  // 10%-step contract — see CLAUDE.md). Ctrl/Cmd+wheel (also how trackpad pinch
+  // reports itself in the DOM) adjusts zoom smoothly instead of snapping to
+  // 10% steps; plain click-drag pans the pitch, same idea as a map view.
+  const pitchScrollRef = useRef<HTMLDivElement>(null);
+  const [panning, setPanning] = useState(false);
+  const panState = useRef<{ startX: number; startY: number; startLeft: number; startTop: number; moved: boolean } | null>(null);
+  const draggedRef = useRef(false);
+
+  // React always registers JSX `onWheel` as a PASSIVE listener, so
+  // `event.preventDefault()` inside it is silently ignored (and logs a
+  // console error) — the browser's native ctrl+wheel page-zoom fires anyway,
+  // corrupting the whole layout instead of just this element. A real
+  // non-passive `addEventListener` is the only way to actually intercept it.
+  useEffect(() => {
+    const el = pitchScrollRef.current;
+    if (!el) return;
+    const onWheel = (event: WheelEvent) => {
+      if (!event.ctrlKey) return; // plain wheel keeps native scroll/pan
+      event.preventDefault();
+      setZoom((value) => Math.min(140, Math.max(60, Math.round(value - event.deltaY * 0.3))));
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, []);
+
+  const handlePanStart = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    const el = pitchScrollRef.current;
+    if (!el || event.button !== 0) return;
+    panState.current = { startX: event.clientX, startY: event.clientY, startLeft: el.scrollLeft, startTop: el.scrollTop, moved: false };
+    // Pointer capture keeps move/up events targeting this element even if the
+    // cursor leaves it mid-drag — without it, fast drags (or a click that
+    // starts/ends with a tiny bit of native cursor jitter) can misfire.
+    el.setPointerCapture(event.pointerId);
+  }, []);
+
+  const handlePanMove = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    const el = pitchScrollRef.current;
+    const start = panState.current;
+    // `buttons` (bitmask of currently-held buttons) guards against panning on
+    // hover/move events where no button is actually pressed.
+    if (!el || !start || event.buttons !== 1) return;
+    const dx = event.clientX - start.startX;
+    const dy = event.clientY - start.startY;
+    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
+      start.moved = true;
+      setPanning(true);
+      el.scrollLeft = start.startLeft - dx;
+      el.scrollTop = start.startTop - dy;
+    }
+  }, []);
+
+  const endPan = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    pitchScrollRef.current?.releasePointerCapture(event.pointerId);
+    draggedRef.current = panState.current?.moved ?? false;
+    panState.current = null;
+    setPanning(false);
+  }, []);
+
+  // A drag that actually moved the view shouldn't also register as a click on
+  // whatever slot button happens to be under the pointer when it's released
+  // (the click fires just after pointerup, so this checks the flag `endPan`
+  // just set rather than `panState`, which is already cleared by then).
+  const suppressClickIfDragged = useCallback((event: ReactMouseEvent<HTMLDivElement>) => {
+    if (draggedRef.current) {
+      draggedRef.current = false;
+      event.preventDefault();
+      event.stopPropagation();
+    }
+  }, []);
 
   function generatedLineup(nextFormation: Formation): TacticalBoardSlotRecord[] {
     const nextSlots = FORMATION_SLOTS[nextFormation];
@@ -285,7 +357,15 @@ export function TacticalBoardClient({
               </button>
             </div>
           </div>
-          <div className="scroll-brand w-full overflow-auto pb-2">
+          <div
+            ref={pitchScrollRef}
+            className={`scroll-brand w-full overflow-auto pb-2 ${panning ? "cursor-grabbing" : "cursor-grab"}`}
+            onPointerDown={handlePanStart}
+            onPointerMove={handlePanMove}
+            onPointerUp={endPan}
+            onPointerLeave={endPan}
+            onClickCapture={suppressClickIfDragged}
+          >
             <TacticalPitch
               slots={slots}
               lineup={lineup}

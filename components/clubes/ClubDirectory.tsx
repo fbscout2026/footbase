@@ -1,23 +1,40 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Building2, Search } from "lucide-react";
 import { ClubeCrest } from "@/components/app/ClubeCrest";
 import { Badge } from "@/components/ui/Badge";
 import { Select } from "@/components/ui/Select";
+import { Pagination } from "@/components/ui/Pagination";
 import { useT } from "@/lib/i18n/I18nProvider";
 import { filterClubs, type ClubDirectoryFilterState } from "@/lib/club-claim-rules";
 import type { ClubSummaryRecord } from "@/lib/services/clubs";
 
 const initialFilters: ClubDirectoryFilterState = { query: "", state: "", federation: "", claimStatus: "" };
 
+// Cap DOM rows to keep the table snappy — rendering every club at once (up
+// to a couple hundred and growing as more federations go live) was the
+// actual cause of sluggish scrolling/interaction on this screen.
+const ROWS_PER_PAGE = 20;
+
 export function ClubDirectory({ clubs }: { clubs: ClubSummaryRecord[] }) {
   const { t } = useT();
   const [filters, setFilters] = useState(initialFilters);
+  const [page, setPage] = useState(1);
   const states = useMemo(() => [...new Set(clubs.map((club) => club.state).filter(Boolean) as string[])].sort(), [clubs]);
   const federations = useMemo(() => [...new Set(clubs.map((club) => club.federation).filter(Boolean) as string[])].sort(), [clubs]);
   const results = useMemo(() => filterClubs(clubs, filters), [clubs, filters]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [results]);
+
+  const pageCount = Math.max(1, Math.ceil(results.length / ROWS_PER_PAGE));
+  const paged = useMemo(() => {
+    const start = (page - 1) * ROWS_PER_PAGE;
+    return results.slice(start, start + ROWS_PER_PAGE);
+  }, [results, page]);
 
   return (
     <div className="space-y-5">
@@ -40,7 +57,10 @@ export function ClubDirectory({ clubs }: { clubs: ClubSummaryRecord[] }) {
 
       <section className="matchday-surface overflow-hidden">
         {results.length === 0 ? <p className="p-10 text-center text-sm text-muted">{t("clubs.empty")}</p> : (
-          <div className="overflow-x-auto"><table className="w-full min-w-[760px] text-sm"><thead><tr className="border-b border-border bg-background text-left text-xs uppercase tracking-wide text-muted"><th className="px-5 py-3">{t("clubs.club")}</th><th className="px-4 py-3">{t("clubs.location")}</th><th className="px-4 py-3">{t("clubs.athletes")}</th><th className="px-4 py-3">{t("clubs.categories")}</th><th className="px-4 py-3">{t("clubs.ownership")}</th></tr></thead><tbody>{results.map((club) => <tr key={club.id} className="border-b border-border/60 transition-colors hover:bg-surface-hover"><td className="px-5 py-4"><Link href={`/clubes/${club.id}`} className="flex min-h-11 items-center gap-3 font-bold uppercase hover:text-brand"><ClubeCrest src={club.crestUrl} name={club.name} size={38} />{club.name}</Link></td><td className="px-4 py-4">{[club.state, club.federation].filter(Boolean).join(" · ") || "—"}</td><td className="metric-value px-4 py-4">{club.athleteCount}</td><td className="px-4 py-4 text-muted">{club.activeCategories.join(", ") || "—"}</td><td className="px-4 py-4"><ClaimBadge status={club.claimStatus} /></td></tr>)}</tbody></table></div>
+          <>
+            <div className="overflow-x-auto"><table className="w-full min-w-[760px] text-sm"><thead><tr className="border-b border-border bg-background text-left text-xs uppercase tracking-wide text-muted"><th className="px-5 py-3">{t("clubs.club")}</th><th className="px-4 py-3">{t("clubs.location")}</th><th className="px-4 py-3">{t("clubs.athletes")}</th><th className="px-4 py-3">{t("clubs.categories")}</th><th className="px-4 py-3">{t("clubs.ownership")}</th></tr></thead><tbody>{paged.map((club) => <tr key={club.id} className="border-b border-border/60 transition-colors hover:bg-surface-hover"><td className="px-5 py-4"><Link href={`/clubes/${club.id}`} className="flex min-h-11 items-center gap-3 font-bold uppercase hover:text-brand"><ClubeCrest src={club.crestUrl} name={club.name} size={38} />{club.name}</Link></td><td className="px-4 py-4">{[club.state, club.federation].filter(Boolean).join(" · ") || "—"}</td><td className="metric-value px-4 py-4">{club.athleteCount}</td><td className="px-4 py-4 text-muted">{club.activeCategories.join(", ") || "—"}</td><td className="px-4 py-4"><ClaimBadge status={club.claimStatus} /></td></tr>)}</tbody></table></div>
+            <Pagination page={page} pageCount={pageCount} onChange={setPage} />
+          </>
         )}
       </section>
     </div>

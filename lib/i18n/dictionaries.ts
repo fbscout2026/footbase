@@ -44,6 +44,9 @@ const pt: Dict = {
   "common.loading": "Carregando...",
   "common.search": "Buscar",
   "lang.label": "Idioma",
+  "pagination.page": "Página",
+  "pagination.previous": "Página anterior",
+  "pagination.next": "Próxima página",
 
   // hero
   "hero.eyebrow": "Dados extraídos direto das súmulas oficiais",
@@ -578,6 +581,9 @@ const en: Dict = {
   "common.loading": "Loading...",
   "common.search": "Search",
   "lang.label": "Language",
+  "pagination.page": "Page",
+  "pagination.previous": "Previous page",
+  "pagination.next": "Next page",
 
   "hero.eyebrow": "Data pulled straight from official match sheets",
   "hero.headlineLead": "Brazilian youth talent, ",
@@ -1047,6 +1053,9 @@ const es: Dict = {
   "common.loading": "Cargando...",
   "common.search": "Buscar",
   "lang.label": "Idioma",
+  "pagination.page": "Página",
+  "pagination.previous": "Página anterior",
+  "pagination.next": "Página siguiente",
 
   "hero.eyebrow": "Datos extraídos directo de las actas oficiales",
   "hero.headlineLead": "El talento de la base brasileña, ",

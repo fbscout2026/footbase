@@ -1,46 +1,65 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import Link from "next/link";
 import { GitCompareArrows, ChevronLeft } from "lucide-react";
 import { useT } from "@/lib/i18n/I18nProvider";
 import type { AtletaRecord } from "@/lib/services/atletas";
 import { AtletaFilters } from "@/components/atletas/AtletaFilters";
 import { AtletasTable } from "@/components/atletas/AtletasTable";
+import { Pagination } from "@/components/ui/Pagination";
 import { Button } from "@/components/ui/Button";
 import { createClient } from "@/lib/supabase/client";
 import { loadAtletasExplorer } from "@/lib/services/atletas";
 import { applyFilters, emptyFilters, type AtletaFilterState } from "@/lib/atletas-filters";
 
+const PAGE_SIZE = 20;
+
 export function AtletasExplorer({ initialAtletas, totalCount }: { initialAtletas: AtletaRecord[]; totalCount: number }) {
   const { t } = useT();
   const [filters, setFilters] = useState<AtletaFilterState>(emptyFilters);
   const [atletas, setAtletas] = useState(initialAtletas);
-  const [loadingMore, setLoadingMore] = useState(false);
+  const [page, setPage] = useState(1);
+  const [loading, setLoading] = useState(false);
+  // The server already gave us page 1 (SSR) — skip re-fetching it on mount.
+  const isFirstRender = useRef(true);
 
-  // Server-side pagination (Session 52: the full unpaginated dataset — 3,000+
-  // real athletes now — hit a Postgres statement timeout, see `atletas.ts`).
-  // "Carregar mais" appends the next page; the quick search/filters below still
-  // only run over whatever has been loaded so far, not the whole database — a
-  // real server-side search is the proper follow-up once this needs to scale
-  // further, this is the honest stopgap for now.
-  const loadMore = useCallback(async () => {
-    setLoadingMore(true);
-    try {
-      const client = createClient();
-      const { atletas: next } = await loadAtletasExplorer(client, Math.floor(atletas.length / 500));
-      setAtletas((prev) => [...prev, ...next]);
-    } finally {
-      setLoadingMore(false);
+  // Real server-side pagination: exactly one page (20 athletes) is ever held
+  // in client state, fetched fresh per page via `.range()` (see `atletas.ts`)
+  // instead of accumulating an ever-growing "carregar mais" list. The quick
+  // search/filters below still only run over the CURRENT page's 20 rows, not
+  // the whole database — a real server-side search is the proper follow-up
+  // once that's worth the extra complexity; this keeps the page itself light.
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
     }
-  }, [atletas.length]);
+    let cancelled = false;
+    setLoading(true);
+    const client = createClient();
+    loadAtletasExplorer(client, page - 1)
+      .then(({ atletas: next }) => {
+        if (!cancelled) setAtletas(next);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [page]);
+
+  const goToPage = useCallback((next: number) => {
+    setPage(Math.max(1, next));
+  }, []);
 
   const nationalities = useMemo(
     () => Array.from(new Set(atletas.map((a) => a.nacionalidade))).sort(),
     [atletas],
   );
   const results = useMemo(() => applyFilters(atletas, filters), [atletas, filters]);
-  const hasMore = atletas.length < totalCount;
+  const pageCount = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
 
   return (
     <div className="space-y-4">
@@ -50,7 +69,7 @@ export function AtletasExplorer({ initialAtletas, totalCount }: { initialAtletas
             {t("atletas.title")}
           </h1>
           <span className="text-sm text-muted">
-            {results.length} / {totalCount} {t("atletas.count")}
+            {totalCount} {t("atletas.count")}
           </span>
         </div>
         <Button href="/atletas/comparar" variant="secondary">
@@ -63,14 +82,10 @@ export function AtletasExplorer({ initialAtletas, totalCount }: { initialAtletas
           <AtletaFilters filters={filters} onChange={setFilters} nationalities={nationalities} />
         </aside>
         <div className="space-y-3 lg:col-span-3 xl:col-span-4">
-          <AtletasTable atletas={results} />
-          {hasMore && (
-            <div className="flex justify-center">
-              <Button variant="secondary" onClick={loadMore} disabled={loadingMore}>
-                {loadingMore ? t("common.loading") : t("atletas.loadMore")}
-              </Button>
-            </div>
-          )}
+          <div className={loading ? "opacity-50 transition-opacity" : "transition-opacity"}>
+            <AtletasTable atletas={results} />
+          </div>
+          <Pagination page={page} pageCount={pageCount} onChange={goToPage} />
         </div>
       </div>
     </div>

@@ -135,7 +135,12 @@ export interface AtletasExplorerPage {
 // of the old "fetch everything, filter client-side" pattern the mock-data-era
 // ClubDirectory/TorneioDirectory pattern assumed (safe at their much smaller
 // scale, not at this one). `page` is 0-indexed.
-const PAGE_SIZE = 500;
+//
+// Session 55: dropped from 500 to 20 — the UI shows exactly one page (20 rows)
+// at a time now, with real numbered pagination (`AtletasExplorer`) replacing
+// the old "carregar mais" accumulation. Each page navigation fetches only the
+// 20 rows it needs instead of ever-growing client-side state.
+const PAGE_SIZE = 20;
 
 export async function loadAtletasExplorer(client: SupabaseClient, page = 0): Promise<AtletasExplorerPage> {
   const from = page * PAGE_SIZE;

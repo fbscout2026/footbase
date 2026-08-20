@@ -3,26 +3,19 @@ import { getSessionProfile } from "@/lib/auth/session";
 import { SessionProvider } from "@/lib/auth/SessionProvider";
 import { AppHeader } from "@/components/app/AppHeader";
 import { AppNav } from "@/components/app/AppNav";
-import { createClient } from "@/lib/supabase/server";
-import { listFavorites, type FavoriteRecord } from "@/lib/services/favorites";
 import { FavoritesProvider } from "@/lib/favorites/FavoritesProvider";
-import { DataLoadNotice } from "@/components/app/DataLoadNotice";
+import { FavoritesLoadNotice } from "@/components/app/FavoritesLoadNotice";
 
-// Server-side route guard for every authed page under (app).
+// Server-side route guard for every authed page under (app). Favorites used
+// to be fetched here too (`await listFavorites(...)`), adding a full extra
+// round-trip that blocked EVERY navigation before anything could render —
+// they're loaded client-side now instead (see FavoritesProvider), off this
+// critical path.
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await getSessionProfile();
 
   if (!session) redirect("/login");
   if (session.accountStatus !== "approved") redirect("/aguardando-aprovacao");
-
-  const supabase = await createClient();
-  let initialFavorites: FavoriteRecord[] = [];
-  let favoritesLoadFailed = false;
-  try {
-    initialFavorites = await listFavorites(supabase, session.userId);
-  } catch {
-    favoritesLoadFailed = true;
-  }
 
   return (
     <SessionProvider value={session}>
@@ -34,7 +27,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           RPC then correctly rejects ("only favorited athletes may be selected") because
           they don't belong to the now-current auth.uid(). Same pattern already used for
           the admin panel's ?user= remount. */}
-      <FavoritesProvider key={session.userId} initialFavorites={initialFavorites}>
+      <FavoritesProvider key={session.userId} initialFavorites={null}>
         <div className="min-h-screen bg-background">
           <AppHeader
             fullName={session.fullName}
@@ -42,7 +35,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             role={session.role}
           />
           <AppNav />
-          {favoritesLoadFailed && <DataLoadNotice />}
+          <FavoritesLoadNotice />
           <main id="main-content" className="w-full px-4 py-5 sm:px-6">{children}</main>
         </div>
       </FavoritesProvider>
