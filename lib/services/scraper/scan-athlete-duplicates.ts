@@ -8,12 +8,28 @@
 // (CLAUDE.md "Fusão de clubes entre fontes") — this script is the athlete
 // equivalent of the club dedup scan that fed `merge-clube.ts`.
 //
-// READ-ONLY. Groups athletes by normalized name and reports every group with more
-// than one member, so a human can decide (via merge-atleta.ts) which pairs are
-// really the same person. NEVER auto-merges — a shared name alone is exactly the
-// weak signal `resolve-athlete-identity.ts` already refuses to act on by itself
+// READ-ONLY. NEVER auto-merges on name alone — a shared name is exactly the weak
+// signal `resolve-athlete-identity.ts` already refuses to act on by itself
 // (confirmed real false positives for clubs with this same pattern — CLAUDE.md's
-// "Democrata Futebol Clube" vs "Esporte Clube Democrata" case).
+// "Democrata Futebol Clube" vs "Esporte Clube Democrata" case). Three tiers:
+//   FORTE      — exact name match + every member shares the same known birth_date.
+//   CLUBE+NOME — name match (exact OR tolerant of spelling/formatting variants,
+//                see below) + every member currently at the SAME real club. This
+//                is the athlete equivalent of the club scan's "crest+state"
+//                signal (CLAUDE.md) — the second, independent confirming fact
+//                that makes a name match trustworthy instead of coincidental
+//                (explicit product decision, Session 55).
+//   fraco      — name match only, no club/birth_date confirmation. Never a merge
+//                candidate on its own; printed for visibility only.
+//
+// Name matching beyond exact-normalized also catches two real, already-confirmed
+// data-quality patterns (Session 55) that would otherwise hide a genuine
+// duplicate: (1) FIRST+LAST token match (catches an abbreviated/missing middle
+// name, e.g. "Carlos Gabriel S. Felicissimo" vs "Carlos Gabriel Silva
+// Felicissimo"); (2) glued-name containment WITHIN the same club's roster only
+// (catches the apelido+full-name gluing bug, e.g. "BRENOBRENNO ALVES DA SILVA"
+// vs "BRENO ALVES DA SILVA" — bounded to one club's roster so this stays cheap
+// and doesn't risk a false positive across two unrelated large rosters).
 //
 // Run: node --experimental-strip-types lib/services/scraper/scan-athlete-duplicates.ts
 
@@ -43,13 +59,120 @@ async function selectAll<T>(admin: SupabaseClient, table: string, columns: strin
   return rows;
 }
 
-interface AthleteRow {
+export interface AthleteRow {
   bid: number;
   name: string;
   birth_date: string | null;
   current_club_id: string | null;
   current_category: string | null;
   total_matches: number;
+}
+
+function looseKey(name: string): string | null {
+  const tokens = normalizeName(name).split(" ").filter(Boolean);
+  if (tokens.length === 0) return null;
+  return `${tokens[0]}|${tokens[tokens.length - 1]}`;
+}
+
+const MIN_GLUED_LEN = 8; // avoids short/common substrings causing false positives
+
+function isGluedVariant(a: string, b: string): boolean {
+  const na = normalizeName(a).replace(/\s+/g, "");
+  const nb = normalizeName(b).replace(/\s+/g, "");
+  if (na === nb) return false; // already caught by exact matching
+  if (na.length < MIN_GLUED_LEN || nb.length < MIN_GLUED_LEN) return false;
+  return na.includes(nb) || nb.includes(na);
+}
+
+export interface DuplicateGroup {
+  key: string;
+  tier: "forte" | "clube+nome" | "revisar-nome" | "fraco";
+  members: AthleteRow[];
+}
+
+// Legacy mock/seed data (pre-real-ingestion, roughly bid 1,000,000-899,999,999 —
+// confirmed live twice, Session 55: both false-positive merge candidates the loose
+// matching produced ("Pedro Henrique" bid 2210223, "Miguel Santos" bid 2311502)
+// turned out to be leftover mock rows in exactly this band — fabricated
+// height/weight/contract data, zero real matches, zero atleta_fontes mapping. Never
+// a legitimate merge target: excluded from the scan entirely so it can't produce
+// another one.
+function isLegacyMockBid(bid: number): boolean {
+  return bid >= 1_000_000 && bid < 900_000_000;
+}
+
+/**
+ * Session 55, correction after real false positives found live: two rounds of
+ * "tolerant" matching (first+last token; then glued-name containment) both got
+ * tested against real data and BOTH produced false positives — common Portuguese
+ * first/last names (e.g. "Rian ... Da Silva" vs "Rian ... Grigorio Silva",
+ * confirmed different: `merge-atleta.ts`'s own same-match collision check caught
+ * one of them mid-preview) and ambiguous name-prefix pairs (a shorter name isn't
+ * reliably "the same person, truncated" — it can just as easily be a genuinely
+ * different, less-fully-recorded person). Every tolerant heuristic tried is
+ * demoted to `revisar-nome` — visibility only, a human MUST read the full name
+ * and context before ever running `merge-atleta.ts --confirm` on one of these.
+ *
+ * The only thing that ever reaches `clube+nome` (a real merge candidate) is an
+ * EXACT normalized full-name match, additionally confirmed by the same current
+ * club — the athlete equivalent of the club scan's "crest+state" second signal.
+ */
+export function findDuplicateGroups(athletes: AthleteRow[]): DuplicateGroup[] {
+  const real = athletes.filter((a) => !isLegacyMockBid(a.bid));
+
+  const exactGroups = new Map<string, AthleteRow[]>();
+  const looseGroups = new Map<string, AthleteRow[]>();
+  for (const a of real) {
+    const exact = normalizeName(a.name);
+    if (exact) (exactGroups.get(exact) ?? exactGroups.set(exact, []).get(exact)!).push(a);
+    const loose = looseKey(a.name);
+    if (loose) (looseGroups.get(loose) ?? looseGroups.set(loose, []).get(loose)!).push(a);
+  }
+
+  // Glued-name containment, bounded to same-club rosters only (cheap: real club
+  // rosters are small, never anywhere near the full 9,301 athletes) — visibility
+  // only (see module doc), never auto-confirmed.
+  const byClub = new Map<string, AthleteRow[]>();
+  for (const a of real) {
+    if (!a.current_club_id) continue;
+    (byClub.get(a.current_club_id) ?? byClub.set(a.current_club_id, []).get(a.current_club_id)!).push(a);
+  }
+  const gluedPairs: AthleteRow[][] = [];
+  for (const roster of byClub.values()) {
+    for (let i = 0; i < roster.length; i++) {
+      for (let j = i + 1; j < roster.length; j++) {
+        if (isGluedVariant(roster[i]!.name, roster[j]!.name)) gluedPairs.push([roster[i]!, roster[j]!]);
+      }
+    }
+  }
+
+  const results: DuplicateGroup[] = [];
+  const exactBids = new Set<number>();
+
+  for (const [key, members] of exactGroups) {
+    if (members.length < 2) continue;
+    const birthDates = new Set(members.map((a) => a.birth_date).filter(Boolean));
+    const forte = birthDates.size === 1 && members.every((a) => a.birth_date);
+    const clubIds = new Set(members.map((a) => a.current_club_id).filter(Boolean));
+    const clubeENome = !forte && clubIds.size === 1 && members.every((a) => a.current_club_id);
+    results.push({ key, tier: forte ? "forte" : clubeENome ? "clube+nome" : "fraco", members });
+    for (const m of members) exactBids.add(m.bid);
+  }
+
+  for (const pair of gluedPairs) {
+    const [a, b] = pair as [AthleteRow, AthleteRow];
+    if (exactBids.has(a.bid) && exactBids.has(b.bid)) continue; // already covered above
+    results.push({ key: `glued:${a.bid}:${b.bid}`, tier: "revisar-nome", members: [a, b] });
+  }
+
+  // Loose matches not already covered by an exact-name group — visibility only.
+  for (const [key, members] of looseGroups) {
+    if (members.length < 2) continue;
+    if (members.every((m) => exactBids.has(m.bid))) continue; // subsumed by an exact group already
+    results.push({ key: `loose:${key}`, tier: "revisar-nome", members });
+  }
+
+  return results;
 }
 
 async function main(): Promise<void> {
@@ -70,33 +193,31 @@ async function main(): Promise<void> {
     for (const c of data ?? []) clubNameById.set(c.id as string, c.name as string);
   }
 
-  const groups = new Map<string, AthleteRow[]>();
-  for (const a of athletes) {
-    const key = normalizeName(a.name);
-    if (!key) continue;
-    (groups.get(key) ?? groups.set(key, []).get(key)!).push(a);
-  }
+  const groups = findDuplicateGroups(athletes);
+  console.log(`[scan-atleta] ${groups.length} grupo(s) de nome duplicado encontrado(s)\n`);
 
-  const duplicateGroups = [...groups.values()].filter((g) => g.length > 1);
-  console.log(`[scan-atleta] ${duplicateGroups.length} grupo(s) de nome duplicado encontrado(s)\n`);
-
-  let strongCount = 0;
-  for (const group of duplicateGroups) {
-    const birthDates = new Set(group.map((a) => a.birth_date).filter(Boolean));
-    // "Strong" = every member shares the exact same known birth_date — as close to a
-    // safe auto-merge signal as this scan gets, still never auto-applied here.
-    const strong = birthDates.size === 1 && group.every((a) => a.birth_date);
-    if (strong) strongCount++;
-    console.log(`${strong ? "[FORTE — mesmo nascimento]" : "[fraco — só nome]"} "${group[0]!.name}" (${group.length} atleta(s)):`);
-    for (const a of group.sort((x, y) => y.total_matches - x.total_matches)) {
+  const counts = { forte: 0, "clube+nome": 0, "revisar-nome": 0, fraco: 0 };
+  const label = {
+    forte: "[FORTE — mesmo nascimento]",
+    "clube+nome": "[CLUBE+NOME — nome idêntico + mesmo clube atual]",
+    "revisar-nome": "[revisar nome — só primeiro/último nome batem, leia o nome completo antes de decidir]",
+    fraco: "[fraco — só nome]",
+  } as const;
+  for (const group of groups) {
+    counts[group.tier]++;
+    console.log(`${label[group.tier]} (${group.members.length} atleta(s)):`);
+    for (const a of group.members.slice().sort((x, y) => y.total_matches - x.total_matches)) {
       const club = a.current_club_id ? (clubNameById.get(a.current_club_id) ?? a.current_club_id) : "sem clube atual";
       const provisional = isProvisionalBid(a.bid) ? " [bid provisório]" : "";
-      console.log(`  bid ${a.bid}${provisional} — nasc. ${a.birth_date ?? "?"} — ${a.current_category ?? "?"} — ${club} — ${a.total_matches} partida(s)`);
+      console.log(`  bid ${a.bid}${provisional} — "${a.name}" — nasc. ${a.birth_date ?? "?"} — ${a.current_category ?? "?"} — ${club} — ${a.total_matches} partida(s)`);
     }
     console.log("");
   }
 
-  console.log(`[scan-atleta] resumo: ${duplicateGroups.length} grupo(s), ${strongCount} forte(s) (nome+nascimento batendo), ${duplicateGroups.length - strongCount} fraco(s) (só nome — revisar clube/categoria manualmente).`);
+  console.log(
+    `[scan-atleta] resumo: ${groups.length} grupo(s) — ${counts.forte} forte(s), ${counts["clube+nome"]} clube+nome (candidatos reais de fusão — SEMPRE confira o nome completo antes de rodar --confirm), ` +
+      `${counts["revisar-nome"]} pra revisar manualmente (nome parecido mas não idêntico), ${counts.fraco} fraco(s) (nunca fundir só por isso).`,
+  );
   console.log(`[scan-atleta] Nada foi escrito — este script é somente leitura. Use merge-atleta.ts <loserId> <winnerId> [--confirm] para fundir um par confirmado.`);
 }
 
