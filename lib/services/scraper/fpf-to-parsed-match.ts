@@ -58,6 +58,8 @@ export async function buildParsedMatchFromFpf(
       yellowCards: a.yellowCards,
       redCards: a.redCards,
       cleanSheet: a.cleanSheet,
+      yellowCardReasons: a.yellowCardReasons,
+      redCardReasons: a.redCardReasons,
     });
   }
 

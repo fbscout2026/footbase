@@ -19,7 +19,7 @@ export function GemasCategoriaAcima({ athletes: gems }: { athletes: GemRow[] }) 
       {gems.length === 0 ? (
         <p className="text-sm text-muted">{t("dashboard.gems.empty")}</p>
       ) : (
-        <ul className="divide-y divide-border">
+        <ul className="scroll-brand max-h-80 divide-y divide-border overflow-y-auto">
           {gems.map((a) => (
             <li key={a.bid}>
               <Link

@@ -64,7 +64,11 @@ language plpgsql
 security definer
 set search_path = public
 as $$
+declare
+  v_current_category text;
 begin
+  select current_category into v_current_category from atletas where bid = p_bid;
+
   update atletas a set
     total_matches = coalesce(stats.total_matches, 0),
     total_minutes = coalesce(stats.total_minutes, 0),
@@ -74,7 +78,9 @@ begin
     total_red_cards = coalesce(stats.total_red_cards, 0),
     total_clean_sheets = coalesce(stats.total_clean_sheets, 0),
     times_played_above_category = coalesce(stats.times_played_above_category, 0),
-    last_match_date = stats.last_match_date
+    games_above_current_category = coalesce(stats.games_above_current_category, 0),
+    last_match_date = stats.last_match_date,
+    goals_last5 = coalesce(recent.goals_last5, 0)
   from (
     select
       count(*)::int as total_matches,
@@ -85,11 +91,23 @@ begin
       coalesce(sum(s.red_cards), 0)::int as total_red_cards,
       coalesce(sum(s.clean_sheet::int), 0)::int as total_clean_sheets,
       coalesce(sum((categoria_rank(p.match_category) > categoria_rank(s.player_category))::int), 0)::int as times_played_above_category,
+      coalesce(sum((v_current_category is not null and categoria_rank(p.match_category) > categoria_rank(v_current_category))::int), 0)::int as games_above_current_category,
       max(p.match_date) as last_match_date
     from atuacoes_sumula s
     join partidas_sumula p on p.id = s.partida_id
     where s.bid_atleta = p_bid
-  ) stats
+  ) stats,
+  lateral (
+    select coalesce(sum(recent5.goals), 0)::int as goals_last5
+    from (
+      select s.goals
+      from atuacoes_sumula s
+      join partidas_sumula p on p.id = s.partida_id
+      where s.bid_atleta = p_bid
+      order by p.match_date desc
+      limit 5
+    ) recent5
+  ) recent
   where a.bid = p_bid;
 end;
 $$;
@@ -348,6 +366,18 @@ create table if not exists atletas (
   total_red_cards integer not null default 0,
   total_clean_sheets integer not null default 0,
   times_played_above_category integer not null default 0,
+  -- "Gemas: categoria acima" (Session 55): matches played whose category
+  -- outranks the athlete's CURRENT category — different from
+  -- `times_played_above_category` above, which compares a match's category
+  -- against the player_category recorded on THAT SAME appearance (always 0
+  -- in practice, since every source's parsers record the player as playing
+  -- in whatever category the match itself is).
+  games_above_current_category integer not null default 0,
+  -- "Destaque da rodada" (Session 55): goals over the athlete's own last 5
+  -- matches — a sortable column so the dashboard can cheaply find the single
+  -- top scorer across the whole table, unlike the client-side last-5
+  -- computation used for the (small) tactical-board favorites list.
+  goals_last5 integer not null default 0,
   last_match_date date,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -364,6 +394,8 @@ create index if not exists idx_atletas_position on atletas (main_position);
 create index if not exists idx_atletas_name_trgm on atletas using gin (name gin_trgm_ops);
 create index if not exists idx_atletas_total_goals on atletas (total_goals);
 create index if not exists idx_atletas_last_match_date on atletas (last_match_date);
+create index if not exists idx_atletas_games_above_current_category on atletas (games_above_current_category);
+create index if not exists idx_atletas_goals_last5 on atletas (goals_last5);
 
 drop trigger if exists trg_atletas_updated_at on atletas;
 create trigger trg_atletas_updated_at
@@ -625,12 +657,33 @@ create table if not exists atuacoes_sumula (
   yellow_cards smallint not null default 0 check (yellow_cards in (0, 1, 2)),
   red_cards smallint not null default 0 check (red_cards in (0, 1)),
   clean_sheet boolean not null default false,  -- goalkeeper kept a clean sheet
+  -- Which of the match's two clubs this appearance was for (Session 55) —
+  -- lets the dossiê derive the OPPONENT (the other club on the same
+  -- `partidas_sumula` row) for any historical match, not just the athlete's
+  -- current club. Already known by the parser (`ParsedAppearance.side`) at
+  -- ingestion time; nullable since it's only backfilled going forward.
+  club_id uuid references clubes (id) on delete set null,
   created_at timestamptz not null default now(),
   unique (partida_id, bid_atleta)
 );
 
 create index if not exists idx_atuacoes_bid on atuacoes_sumula (bid_atleta);
+create index if not exists idx_atuacoes_club on atuacoes_sumula (club_id);
 create index if not exists idx_atuacoes_partida on atuacoes_sumula (partida_id);
+
+-- Per-card disciplinary detail (Session 55) — the súmula's own free-text
+-- "Motivo:" line, one row per real card event (an appearance can carry up to
+-- 2 yellow-card events plus a red, each with its own reason — an aggregate
+-- column on `atuacoes_sumula` can't hold that).
+create table if not exists atuacao_cartoes (
+  id uuid primary key default gen_random_uuid(),
+  atuacao_id uuid not null references atuacoes_sumula (id) on delete cascade,
+  card_type text not null check (card_type in ('yellow', 'red')),
+  reason text,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_atuacao_cartoes_atuacao on atuacao_cartoes (atuacao_id);
 
 -- ----------------------------------------------------------------------------
 -- favoritos (user's shortlist + rating; drives tactical-board bench ranking)
@@ -985,6 +1038,7 @@ alter table scraping_jobs enable row level security;
 alter table atleta_fontes enable row level security;
 alter table partidas_sumula enable row level security;
 alter table atuacoes_sumula enable row level security;
+alter table atuacao_cartoes enable row level security;
 alter table favoritos enable row level security;
 alter table prancheta_tatica enable row level security;
 alter table prancheta_slots enable row level security;
@@ -1112,6 +1166,11 @@ create policy partidas_write_admin on partidas_sumula
 create policy atuacoes_select_approved on atuacoes_sumula
   for select using ((select private.is_approved()) or (select private.is_admin()));
 create policy atuacoes_write_admin on atuacoes_sumula
+  for all using (private.is_admin()) with check (private.is_admin());
+
+create policy atuacao_cartoes_select_approved on atuacao_cartoes
+  for select using ((select private.is_approved()) or (select private.is_admin()));
+create policy atuacao_cartoes_write_admin on atuacao_cartoes
   for all using (private.is_admin()) with check (private.is_admin());
 
 -- favoritos: strictly private to an approved owner.
@@ -1448,7 +1507,8 @@ select
   a.times_played_above_category,
   (a.times_played_above_category > 0) as ja_jogou_categoria_acima,
   a.last_match_date,
-  (a.last_match_date is null or a.last_match_date < current_date - interval '30 days') as is_inactive_30d
+  (a.last_match_date is null or a.last_match_date < current_date - interval '30 days') as is_inactive_30d,
+  a.games_above_current_category
 from atletas a
 left join clubes c on c.id = a.current_club_id;
 

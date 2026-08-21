@@ -196,23 +196,45 @@ export async function ingestMatch(admin: SupabaseClient, parsed: ParsedMatch, op
     report.matchUpserted = true;
     const partidaId = String(match.data.id);
 
-    // Upsert appearances (resolvable BIDs only).
-    const rows = parsed.appearances.filter((a) => resolvableBids.has(a.bid)).map((a) => ({
+    // Upsert appearances (resolvable BIDs only). `club_id` (Session 55) is the
+    // club THIS appearance was for — already known via `a.side`, same source
+    // as the current_club_id-refresh loop below, just persisted now instead
+    // of only used transiently.
+    const resolvableAppearances = parsed.appearances.filter((a) => resolvableBids.has(a.bid));
+    const rows = resolvableAppearances.map((a) => ({
       partida_id: partidaId, bid_atleta: a.bid, player_category: a.playerCategory, minutes_played: a.minutesPlayed,
       goals: a.goals, assists: a.assists, yellow_cards: a.yellowCards, red_cards: a.redCards, clean_sheet: a.cleanSheet,
+      club_id: a.side ? clubIds[a.side] : null,
     }));
     if (rows.length > 0) {
-      const ins = await admin.from("atuacoes_sumula").upsert(rows, { onConflict: "partida_id,bid_atleta" }).select("id");
+      const ins = await admin.from("atuacoes_sumula").upsert(rows, { onConflict: "partida_id,bid_atleta" }).select("id,bid_atleta");
       if (ins.error) throw ins.error;
       report.appearancesUpserted = rows.length;
 
-      // Keep the precomputed stat columns on `atletas` fresh (Session 55):
-      // `view_atleta_resumo` reads these directly now instead of a live
-      // per-row LATERAL aggregate, which started hitting Postgres statement
-      // timeouts on the dashboard once atuacoes_sumula grew past ~30k rows.
-      for (const bid of new Set(rows.map((r) => r.bid_atleta))) {
-        const { error: statsErr } = await admin.rpc("recompute_atleta_stats", { p_bid: bid });
-        if (statsErr) report.errors.push(`stats recompute failed for bid ${bid}: ${statsErr.message}`);
+      // Card reasons (Session 55) — one row per real card event, straight
+      // from the súmula's own "Motivo:" text. Delete-then-insert scoped to
+      // just these atuações, so reprocessing the same match (a correction,
+      // or the Session 55 historical backfill) never duplicates rows.
+      const atuacaoIdByBid = new Map((ins.data ?? []).map((r) => [Number(r.bid_atleta), r.id as string]));
+      const cardRows: { atuacao_id: string; card_type: "yellow" | "red"; reason: string }[] = [];
+      for (const a of resolvableAppearances) {
+        const atuacaoId = atuacaoIdByBid.get(a.bid);
+        if (!atuacaoId) continue;
+        for (const reason of a.yellowCardReasons ?? []) {
+          if (reason) cardRows.push({ atuacao_id: atuacaoId, card_type: "yellow", reason });
+        }
+        for (const reason of a.redCardReasons ?? []) {
+          if (reason) cardRows.push({ atuacao_id: atuacaoId, card_type: "red", reason });
+        }
+      }
+      const affectedAtuacaoIds = [...atuacaoIdByBid.values()];
+      if (affectedAtuacaoIds.length > 0) {
+        const del = await admin.from("atuacao_cartoes").delete().in("atuacao_id", affectedAtuacaoIds);
+        if (del.error) throw del.error;
+      }
+      if (cardRows.length > 0) {
+        const cardIns = await admin.from("atuacao_cartoes").insert(cardRows);
+        if (cardIns.error) throw cardIns.error;
       }
     }
 
@@ -234,6 +256,21 @@ export async function ingestMatch(admin: SupabaseClient, parsed: ParsedMatch, op
       if (newer) continue; // a more recent match already set the current club/category
       const upd = await admin.from("atletas").update({ current_club_id: clubId, current_category: parsed.matchCategory }).eq("bid", a.bid);
       if (upd.error) throw upd.error;
+    }
+
+    // Keep the precomputed stat columns on `atletas` fresh (Session 55):
+    // `view_atleta_resumo` reads these directly now instead of a live
+    // per-row LATERAL aggregate, which started hitting Postgres statement
+    // timeouts on the dashboard once atuacoes_sumula grew past ~30k rows.
+    // Runs AFTER the `current_category` update above (not right after the
+    // appearances upsert) — `games_above_current_category` compares each
+    // past match's category against the athlete's CURRENT category, so it
+    // needs that column already reflecting this match before it computes.
+    if (rows.length > 0) {
+      for (const bid of new Set(rows.map((r) => r.bid_atleta))) {
+        const { error: statsErr } = await admin.rpc("recompute_atleta_stats", { p_bid: bid });
+        if (statsErr) report.errors.push(`stats recompute failed for bid ${bid}: ${statsErr.message}`);
+      }
     }
 
     const status = report.errors.length > 0 ? "partial" : "success";

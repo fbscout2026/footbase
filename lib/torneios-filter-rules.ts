@@ -15,6 +15,7 @@ export interface TorneioSummary {
   federationText: string;
   federacaoId: string | null;
   federacaoSigla: string | null;
+  federacaoNome: string | null;
   category: string | null;
   year: number;
 }
@@ -55,11 +56,16 @@ export function categoriasForFederacao(torneios: TorneioSummary[], federacao: Fe
   return CATEGORY_ORDER.filter((c) => present.has(c));
 }
 
-/** Quick search (by name) combined with whatever cascade level is selected. */
+/** Quick search (by torneio name, federation acronym/full name — e.g. "FERJ" or "Rio
+ * de Janeiro" — or free-text federation label) combined with whatever cascade level
+ * is selected. */
 export function filterTorneios(torneios: TorneioSummary[], filters: TorneioFilterState): TorneioSummary[] {
   const q = filters.query.trim().toLowerCase();
   return torneios.filter((t) => {
-    if (q && !t.name.toLowerCase().includes(q)) return false;
+    if (q) {
+      const haystack = [t.name, t.federationText, t.federacaoSigla, t.federacaoNome].filter(Boolean).join(" ").toLowerCase();
+      if (!haystack.includes(q)) return false;
+    }
     if (filters.federacaoId && t.federacaoId !== filters.federacaoId) return false;
     if (filters.categoria && t.category !== filters.categoria) return false;
     return true;

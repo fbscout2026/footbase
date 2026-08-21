@@ -10,7 +10,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getSessionProfile } from "@/lib/auth/session";
 import {
   loadHeroStats, loadTorneiosDestaque, loadContratosVencendo, loadGemasCategoriaAcima,
-  loadInativos, loadBoardSummary, loadTopScorers, loadAgentesLivres,
+  loadInativos, loadBoardSummary, loadTopScorers, loadAgentesLivres, loadNotificationsSummary,
 } from "@/lib/services/dashboard";
 
 // Full-width, Transfermarkt-style dense grid: 3 rails (left / center / right)
@@ -21,20 +21,21 @@ export default async function DashboardPage() {
   const supabase = await createClient();
   const session = await getSessionProfile();
 
-  const [hero, torneios, contratos, gemas, inativos, board, artilheiros, livres] = await Promise.all([
+  const [hero, torneios, contratos, gemas, inativos, board, artilheiros, livres, notifications] = await Promise.all([
     loadHeroStats(supabase),
     loadTorneiosDestaque(supabase),
     loadContratosVencendo(supabase),
-    loadGemasCategoriaAcima(supabase),
+    loadGemasCategoriaAcima(supabase, 20),
     loadInativos(supabase),
     session ? loadBoardSummary(supabase, session.userId) : Promise.resolve({ exists: false, formation: "4-3-3", starters: 0, bench: 0 }),
     loadTopScorers(supabase),
     loadAgentesLivres(supabase),
+    session ? loadNotificationsSummary(supabase, session.userId) : Promise.resolve({ count: 0, contractsExpiring: 0, inactive: 0, newGems: 0 }),
   ]);
 
   return (
     <div className="space-y-4">
-      <HeroBanner stats={hero} />
+      <HeroBanner stats={hero} notifications={notifications} />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
         {/* Left rail — competitions */}

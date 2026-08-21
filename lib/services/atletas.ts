@@ -23,6 +23,7 @@ export interface AtletaStats {
   totalRedCards: number;
   totalCleanSheets: number;
   timesPlayedAboveCategory: number;
+  gamesAboveCurrentCategory: number;
   lastMatchDate: string | null;
 }
 
@@ -62,7 +63,7 @@ const VIEW_COLUMNS =
   "dominant_foot,height_cm,weight_kg,inicio_carreira,contract_end_date,contract_status,current_club_id,current_club_name," +
   "current_club_crest_url,current_category,experiencia_internacional,jogos_suspenso,agent_id,claim_status,youtube_video_url," +
   "total_matches,total_minutes,total_goals,total_assists,total_yellow_cards,total_red_cards,total_clean_sheets," +
-  "times_played_above_category,last_match_date,is_inactive_30d";
+  "times_played_above_category,games_above_current_category,last_match_date,is_inactive_30d";
 
 type ViewRow = {
   bid: number; fifa_id: string | null; name: string; apelido: string | null; birth_date: string | null;
@@ -74,7 +75,8 @@ type ViewRow = {
   jogos_suspenso: number; agent_id: string | null; claim_status: ClaimStatus; youtube_video_url: string | null;
   total_matches: number; total_minutes: number; total_goals: number; total_assists: number;
   total_yellow_cards: number; total_red_cards: number; total_clean_sheets: number;
-  times_played_above_category: number; last_match_date: string | null; is_inactive_30d: boolean;
+  times_played_above_category: number; games_above_current_category: number;
+  last_match_date: string | null; is_inactive_30d: boolean;
 };
 
 function mapRow(r: ViewRow): AtletaRecord {
@@ -114,6 +116,7 @@ function mapRow(r: ViewRow): AtletaRecord {
       totalRedCards: r.total_red_cards,
       totalCleanSheets: r.total_clean_sheets,
       timesPlayedAboveCategory: r.times_played_above_category,
+      gamesAboveCurrentCategory: r.games_above_current_category,
       lastMatchDate: r.last_match_date,
     },
     isInactive30d: r.is_inactive_30d,
@@ -342,6 +345,71 @@ export async function loadRecentStatsByBids(client: SupabaseClient, bids: number
     result.set(bid, stats);
   }
   return result;
+}
+
+export interface CategoriaAcimaMatch {
+  matchDate: string;
+  matchCategory: string;
+  minutesPlayed: number;
+  goals: number;
+  assists: number;
+}
+
+/**
+ * Every real match this one athlete played whose category outranks their
+ * CURRENT category (`atletas.current_category`) — the per-match detail
+ * behind the precomputed `games_above_current_category` count (Session 55).
+ * Single-athlete scale, same "fetch all, filter client-side" approach as
+ * `loadEvolucaoReal`.
+ */
+export async function loadCategoriaAcimaMatches(client: SupabaseClient, bid: number, currentCategory: string | null): Promise<CategoriaAcimaMatch[]> {
+  if (!currentCategory) return [];
+  const currentRank = CATEGORIA_RANK[currentCategory];
+  if (currentRank == null) return [];
+
+  const { data, error } = await client
+    .from("atuacoes_sumula")
+    .select("minutes_played,goals,assists,partidas_sumula!inner(match_date,match_category)")
+    .eq("bid_atleta", bid);
+  if (error) throw error;
+
+  return (data as any[] ?? [])
+    .filter((r) => (CATEGORIA_RANK[r.partidas_sumula?.match_category ?? ""] ?? 0) > currentRank)
+    .map((r) => ({
+      matchDate: r.partidas_sumula.match_date,
+      matchCategory: r.partidas_sumula.match_category,
+      minutesPlayed: r.minutes_played ?? 0,
+      goals: r.goals ?? 0,
+      assists: r.assists ?? 0,
+    }))
+    .sort((a, b) => b.matchDate.localeCompare(a.matchDate));
+}
+
+export interface CardEvent {
+  matchDate: string;
+  matchCategory: string;
+  yellowCards: number;
+  redCards: number;
+}
+
+/** Every real match where this athlete picked up at least one card —
+ * powers the dossiê's scrollable disciplinary-history card (Session 55). */
+export async function loadCardEvents(client: SupabaseClient, bid: number): Promise<CardEvent[]> {
+  const { data, error } = await client
+    .from("atuacoes_sumula")
+    .select("yellow_cards,red_cards,partidas_sumula!inner(match_date,match_category)")
+    .eq("bid_atleta", bid)
+    .or("yellow_cards.gt.0,red_cards.gt.0");
+  if (error) throw error;
+
+  return (data as any[] ?? [])
+    .map((r) => ({
+      matchDate: r.partidas_sumula.match_date,
+      matchCategory: r.partidas_sumula.match_category,
+      yellowCards: r.yellow_cards ?? 0,
+      redCards: r.red_cards ?? 0,
+    }))
+    .sort((a, b) => b.matchDate.localeCompare(a.matchDate));
 }
 
 export interface ConquistaRecord {

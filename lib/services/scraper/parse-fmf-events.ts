@@ -32,6 +32,20 @@ function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+/**
+ * FMF's card reason isn't behind a "Motivo:" label like CBF/FGF — it's a bare
+ * "- <reason>;" line wedged between the player's name and their team, e.g.
+ * "Julio Cesar Cordeiro Silva - desrespeito ao jogo; ASSOCIACAO...". Pull just
+ * that dash-prefixed, semicolon-terminated segment out of the raw text
+ * between the shirt number and the team token.
+ */
+function extractDashReason(raw: string): string | null {
+  const m = raw.match(/-\s*([^;]+);/);
+  if (!m) return null;
+  const cleaned = m[1]!.replace(/\s+/g, " ").trim();
+  return cleaned || null;
+}
+
 function section(text: string, startRe: RegExp, endRe: RegExp): string {
   const s = text.search(startRe);
   if (s === -1) return "";
@@ -108,20 +122,27 @@ export function buildFmfAppearances(
 
   // --- Yellow cards ------------------------------------------------------------
   const yellowBlock = section(text, /Cartões Amarelos/i, /Cartões Vermelhos|Comissão|Ocorrências/i);
-  const yellowRe = new RegExp(`(\\d{1,2}:\\d{2})\\s*(1T|2T)\\s*(\\d{1,2}).*?(${teamToken})`, "g");
+  const yellowRe = new RegExp(`(\\d{1,2}:\\d{2})\\s*(1T|2T)\\s*(\\d{1,2})([\\s\\S]*?)(${teamToken})`, "g");
   const yellowCount = new Map<string, number>();
+  const yellowReasons = new Map<string, string[]>();
   for (const m of yellowBlock.matchAll(yellowRe)) {
-    const key = `${sideOf(m[4]!)}:${Number(m[3]!)}`;
+    const key = `${sideOf(m[5]!)}:${Number(m[3]!)}`;
     yellowCount.set(key, (yellowCount.get(key) ?? 0) + 1);
+    const reason = extractDashReason(m[4]!);
+    if (reason) (yellowReasons.get(key) ?? yellowReasons.set(key, []).get(key)!).push(reason);
   }
 
   // --- Red cards -----------------------------------------------------------------
   const redBlock = section(text, /Cartões Vermelhos/i, /Comissão|Ocorrências|Substituições/i);
   const redAt = new Map<string, number>();
+  const redReasons = new Map<string, string>();
   if (!/N[ÃA]O HOUVE/i.test(redBlock)) {
-    const redRe = new RegExp(`(\\d{1,2}:\\d{2})\\s*(1T|2T)\\s*(\\d{1,2}).*?(${teamToken})`, "g");
+    const redRe = new RegExp(`(\\d{1,2}:\\d{2})\\s*(1T|2T)\\s*(\\d{1,2})([\\s\\S]*?)(${teamToken})`, "g");
     for (const m of redBlock.matchAll(redRe)) {
-      redAt.set(`${sideOf(m[4]!)}:${Number(m[3]!)}`, timeline(m[1]!, m[2]!));
+      const key = `${sideOf(m[5]!)}:${Number(m[3]!)}`;
+      redAt.set(key, timeline(m[1]!, m[2]!));
+      const reason = extractDashReason(m[4]!);
+      if (reason) redReasons.set(key, reason);
     }
   }
 
@@ -164,6 +185,7 @@ export function buildFmfAppearances(
       const goalsAgainstWhileOn = concededHere.filter((g) => g.at >= entry && g.at < windowExit).length;
 
       const goalsScored = goals.filter((g) => !g.ownGoal && g.scorer === side && g.shirt === p.shirt).length;
+      const redCard = red != null || (yellowCount.get(key) ?? 0) >= 2 ? 1 : 0;
 
       appearances.push({
         bid: p.bid,
@@ -173,8 +195,10 @@ export function buildFmfAppearances(
         goals: goalsScored,
         assists: 0, // not present in the súmula
         yellowCards: Math.min(2, yellowCount.get(key) ?? 0),
-        redCards: red != null || (yellowCount.get(key) ?? 0) >= 2 ? 1 : 0,
+        redCards: redCard,
         cleanSheet: false, // no goalkeeper marker in the FMF roster to compute this safely
+        yellowCardReasons: yellowReasons.get(key),
+        redCardReasons: redCard && redReasons.has(key) ? [redReasons.get(key)!] : undefined,
       });
     }
   }

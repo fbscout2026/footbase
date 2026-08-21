@@ -30,6 +30,7 @@
 
 import { type Page } from "playwright";
 import { readFileSync, existsSync } from "node:fs";
+import { pathToFileURL } from "node:url";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { fetchSumulaText } from "./extract-pdf-text.ts";
 import { parseFpfSumula } from "./parse-fpf-sumula.ts";
@@ -50,6 +51,8 @@ import { discoverFmfCompetition } from "./discovery/fmf-discover.ts";
 import { parseFmfSumula } from "./parse-fmf-sumula.ts";
 import { discoverFgfCompetition, fetchFgfSumulaUrl } from "./discovery/fgf-discover.ts";
 import { recordScrapingJob, getDoneJobRefs } from "./scraping-jobs.ts";
+import { resolveAthleteIdentity } from "./resolve-athlete-identity.ts";
+import { seedProvisionalAthlete, nextProvisionalBid } from "./provisional-athlete.ts";
 import { createStealthSession, type StealthSession } from "./discovery/stealth-browser.ts";
 
 // ---- Config: every source this executor knows about today ------------------------
@@ -410,8 +413,120 @@ async function processCbfSource(admin: SupabaseClient, cfg: CbfSourceConfig, dry
   return results;
 }
 
+// Identity resolution state (Session 55): FERJ never carries a real CBF bid, so
+// without this every match's roster would just sit unresolved forever (see
+// plan-ferj-identity-seed.ts's module doc). Per product decision, ingestion never
+// blocks on admin review — every athlete resolves to a real/mapped bid OR a fresh
+// PROVISIONAL one (provisional-athlete.ts); true duplicates across sources are
+// reconciled later by a human via scan-athlete-duplicates.ts + merge-atleta.ts.
+// Loaded once per run (not per match) so a player seen across several matches in the
+// same run only ever gets one provisional bid. Exported so both the live executor
+// AND a one-off catch-up script (for matches recorded 'done' before this identity
+// step existed) share the exact same resolution logic — never duplicated.
+export interface FerjIdentityState {
+  existingAthletes: { bid: number; name: string; birthDate: string }[];
+  ferjMappings: { fonte: string; externalId: string; bid: number }[];
+  nextProvisionalBid: number;
+}
+
+/** PostgREST caps a single `.select()` at 1000 rows by default — silently, no error,
+ * just a truncated result. Confirmed live (Session 55): with 8000+ atletas and 1000+
+ * atleta_fontes(fonte='ferj') rows, both loads below were silently cut to exactly
+ * 1000, which made the "already resolved" in-memory check miss real, existing
+ * mappings past that cutoff — causing a genuine `atleta_fontes_pkey` duplicate-key
+ * crash (not a race, not a data problem) on any bira whose mapping fell past row
+ * 1000. Every full-table load this identity resolution depends on MUST paginate. */
+async function selectAll<T>(admin: SupabaseClient, table: string, columns: string, filter?: (q: any) => any): Promise<T[]> {
+  const PAGE = 1000;
+  const rows: T[] = [];
+  for (let offset = 0; ; offset += PAGE) {
+    let q = admin.from(table).select(columns).range(offset, offset + PAGE - 1);
+    if (filter) q = filter(q);
+    const { data, error } = await q;
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+    rows.push(...(data as T[]));
+    if (data.length < PAGE) break;
+  }
+  return rows;
+}
+
+export async function loadFerjIdentityState(admin: SupabaseClient): Promise<FerjIdentityState> {
+  const existingAthletesData = await selectAll<{ bid: number; name: string; birth_date: string | null }>(admin, "atletas", "bid, name, birth_date");
+  const existingAthletes = existingAthletesData.map((a) => ({ bid: a.bid, name: a.name, birthDate: a.birth_date ?? "" }));
+  const ferjMappingsData = await selectAll<{ id_externo: string; bid: number }>(admin, "atleta_fontes", "id_externo, bid", (q) => q.eq("fonte", "ferj"));
+  const ferjMappings = ferjMappingsData.map((m) => ({ fonte: "ferj", externalId: String(m.id_externo), bid: Number(m.bid) }));
+  const nextProvisionalBidValue = await nextProvisionalBid(admin);
+  return { existingAthletes, ferjMappings, nextProvisionalBid: nextProvisionalBidValue };
+}
+
+export interface FerjMatchOutcome {
+  outcome: "no-sumula-yet" | "reconciliation-failed" | "write-failed" | "unresolved-players" | "ingested";
+  detail: string;
+  sourceUrl: string;
+}
+
+/** Fetches, parses, resolves identity, and ingests ONE FERJ match. Shared by the live
+ * executor's per-match loop and any one-off catch-up run over already-known matchIds. */
+export async function ingestOneFerjMatch(
+  admin: SupabaseClient,
+  matchId: number,
+  categoriaHint: string | undefined,
+  dryRun: boolean,
+  state: FerjIdentityState,
+): Promise<FerjMatchOutcome> {
+  const { html, sumulaPdfUrl } = await fetchFerjMatchPage(matchId);
+  if (!sumulaPdfUrl) return { outcome: "no-sumula-yet", detail: "no súmula PDF link on the match page yet", sourceUrl: "" };
+
+  const pdfText = await fetchSumulaText(sumulaPdfUrl);
+  const pdf = parseFerjSumulaPdf(pdfText, { categoryHint: categoriaHint });
+  const { match: ferjMatch } = buildFerjSumula(pdf, html, { sourceUrl: sumulaPdfUrl });
+  const reconciliationErrors = reconcileFerjParsedMatch(ferjMatch);
+  if (reconciliationErrors.length > 0) {
+    return { outcome: "reconciliation-failed", detail: reconciliationErrors.join("; "), sourceUrl: sumulaPdfUrl };
+  }
+
+  // Resolve every athlete's identity BEFORE the bridge below. A name collision
+  // ('ambiguous') still gets its own fresh provisional profile, never auto-merged here.
+  for (const athlete of ferjMatch.athletes) {
+    if (state.ferjMappings.some((m) => m.externalId === athlete.bira)) continue;
+    const res = resolveAthleteIdentity(
+      { fonte: "ferj", externalId: athlete.bira, cbfBid: null, name: athlete.name, birthDate: null },
+      { existing: state.existingAthletes, mappings: state.ferjMappings },
+    );
+    let bid: number;
+    if (res.kind === "bid" || res.kind === "mapped" || res.kind === "matched") {
+      bid = res.bid;
+      if (!dryRun && res.kind !== "mapped") {
+        const insM = await admin.from("atleta_fontes").insert({ fonte: "ferj", id_externo: athlete.bira, bid });
+        if (insM.error) throw insM.error;
+      }
+    } else {
+      bid = state.nextProvisionalBid++;
+      if (!dryRun) await seedProvisionalAthlete(admin, bid, { fonte: "ferj", externalId: athlete.bira, name: athlete.name });
+      state.existingAthletes.push({ bid, name: athlete.name, birthDate: "" });
+    }
+    state.ferjMappings.push({ fonte: "ferj", externalId: athlete.bira, bid });
+  }
+
+  const { match, unresolved } = await buildParsedMatchFromFerj(admin, ferjMatch);
+  const report = await ingestMatch(admin, match, { dryRun, allowPartialAppearances: unresolved.length > 0 });
+  const detail = dryRun
+    ? `plan: ${report.appearancesUpserted} atuações, ${report.athletesSeeded} atletas novos` +
+      (unresolved.length ? `; ${unresolved.length} jogador(es) sem mapeamento ainda` : "")
+    : `gravado: ${report.appearancesUpserted} atuações` + (report.errors.length ? `; erros: ${report.errors.join("; ")}` : "");
+  // See the CBF processor's identical fix (Session 50) — a live write that threw
+  // inside `ingestMatch` must never come back bucketed as "ingested".
+  if (!dryRun && report.errors.length > 0) return { outcome: "write-failed", detail, sourceUrl: sumulaPdfUrl };
+  const outcome = unresolved.length > 0 && match.appearances.length === 0 ? ("unresolved-players" as const) : ("ingested" as const);
+  return { outcome, detail, sourceUrl: sumulaPdfUrl };
+}
+
 async function processFerjSource(admin: SupabaseClient, cfg: FerjSourceConfig, dryRun: boolean, touch: () => void): Promise<ExecutorItemResult[]> {
   const results: ExecutorItemResult[] = [];
+
+  const state = await loadFerjIdentityState(admin);
+  const provisionalBidStart = state.nextProvisionalBid;
 
   const monthBatches = await forEachRateLimited(cfg.meses, (mes) => discoverFerjMonth(mes, cfg.ano), { minDelayMs: 700, jitterMs: 300, onItemDone: touch });
   const matchRefsAll = monthBatches.flatMap((b) => b.result ?? []);
@@ -431,29 +546,7 @@ async function processFerjSource(admin: SupabaseClient, cfg: FerjSourceConfig, d
 
   const outcomes = await forEachRateLimited(
     matchRefs,
-    async (ref) => {
-      const { html, sumulaPdfUrl } = await fetchFerjMatchPage(ref.matchId);
-      if (!sumulaPdfUrl) return { outcome: "no-sumula-yet" as const, detail: "no súmula PDF link on the match page yet", sourceUrl: "" };
-
-      const pdfText = await fetchSumulaText(sumulaPdfUrl);
-      const pdf = parseFerjSumulaPdf(pdfText, { categoryHint: ref.categoria });
-      const { match: ferjMatch } = buildFerjSumula(pdf, html, { sourceUrl: sumulaPdfUrl });
-      const reconciliationErrors = reconcileFerjParsedMatch(ferjMatch);
-      if (reconciliationErrors.length > 0) {
-        return { outcome: "reconciliation-failed" as const, detail: reconciliationErrors.join("; "), sourceUrl: sumulaPdfUrl };
-      }
-      const { match, unresolved } = await buildParsedMatchFromFerj(admin, ferjMatch);
-      const report = await ingestMatch(admin, match, { dryRun, allowPartialAppearances: unresolved.length > 0 });
-      const detail = dryRun
-        ? `plan: ${report.appearancesUpserted} atuações, ${report.athletesSeeded} atletas novos` +
-          (unresolved.length ? `; ${unresolved.length} jogador(es) sem mapeamento ainda` : "")
-        : `gravado: ${report.appearancesUpserted} atuações` + (report.errors.length ? `; erros: ${report.errors.join("; ")}` : "");
-      // See the CBF processor's identical fix (Session 50) — a live write that threw
-      // inside `ingestMatch` must never come back bucketed as "ingested".
-      if (!dryRun && report.errors.length > 0) return { outcome: "write-failed" as const, detail, sourceUrl: sumulaPdfUrl };
-      const outcome = unresolved.length > 0 && match.appearances.length === 0 ? ("unresolved-players" as const) : ("ingested" as const);
-      return { outcome, detail, sourceUrl: sumulaPdfUrl };
-    },
+    (ref) => ingestOneFerjMatch(admin, ref.matchId, ref.categoria, dryRun, state),
     { minDelayMs: 900, jitterMs: 400, onItemDone: touch },
   );
 
@@ -477,6 +570,10 @@ async function processFerjSource(admin: SupabaseClient, cfg: FerjSourceConfig, d
           : { status: "failed", error: detail, payload: { url: sourceUrl, competition: cfg.label } },
       );
     }
+  }
+  const provisionalCreated = state.nextProvisionalBid - provisionalBidStart;
+  if (provisionalCreated > 0) {
+    console.log(`[executor] FERJ: ${cfg.label} — ${provisionalCreated} atleta(s) com bid provisório ${dryRun ? "seriam criados" : "criados"} (bid ${provisionalBidStart}..${state.nextProvisionalBid - 1})`);
   }
   return results;
 }
@@ -828,16 +925,26 @@ async function main(): Promise<void> {
   }
 }
 
-main()
-  .then(() => {
-    // A source abandoned by `withTimeout` (see its doc) may leave a hung network
-    // handle Node's event loop would otherwise wait on forever even though every
-    // useful result is already logged above — force a clean exit instead of a
-    // silent, invisible hang after the real work is done (Session 54: this is the
-    // exact "never allowed to get stuck" requirement, applied to the process itself).
-    process.exit(0);
-  })
-  .catch((e) => {
-    console.error("[executor] fatal:", e);
-    process.exit(1);
-  });
+// Only run the full executor when this file is EXECUTED directly (`node
+// run-live-ingestion.ts`) — never as a side effect of another script importing its
+// shared exports (loadFerjIdentityState, ingestOneFerjMatch). Before this guard
+// (Session 55, found live), catchup-ferj-athletes.ts's import alone silently kicked
+// off a full CBF/FMF/FGF/FERJ discovery+ingest pass in the background, racing the
+// importing script's own logic — and whichever finished first called `process.exit`,
+// which could have killed a live write mid-flight.
+const isMainModule = process.argv[1] != null && import.meta.url === pathToFileURL(process.argv[1]).href;
+if (isMainModule) {
+  main()
+    .then(() => {
+      // A source abandoned by `withTimeout` (see its doc) may leave a hung network
+      // handle Node's event loop would otherwise wait on forever even though every
+      // useful result is already logged above — force a clean exit instead of a
+      // silent, invisible hang after the real work is done (Session 54: this is the
+      // exact "never allowed to get stuck" requirement, applied to the process itself).
+      process.exit(0);
+    })
+    .catch((e) => {
+      console.error("[executor] fatal:", e);
+      process.exit(1);
+    });
+}

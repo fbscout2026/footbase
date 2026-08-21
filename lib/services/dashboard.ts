@@ -42,20 +42,20 @@ export async function loadTopScorers(client: SupabaseClient, limit = 6): Promise
   return (data ?? []).map((r) => ({ ...toAthleteRow(r), goals: r.total_goals }));
 }
 
-// Deliberately not querying `times_played_above_category` from the view: it's
-// computed via `categoria_rank()`, a real per-row function call (a scalar
-// subquery against `categoria_ordem`) inside the LATERAL stats join — confirmed
-// live (Session 52) to alone push a query into `statement timeout` even where
-// every other view-backed widget on this same dashboard succeeds in ~2s. A
-// direct query bypassing the view (comparing `SUB-N` suffixes numerically in
-// JS across all ~15k `atuacoes_sumula` rows) works but still takes ~6s AND
-// found zero real occurrences in the data ingested so far — base categories
-// essentially never field a player above their own category. Not worth
-// spending that latency on every dashboard load for a real signal that's
-// currently always empty; revisit if/when this actually starts happening, or
-// once it's cheap to compute (e.g. precomputed during ingestion).
-export async function loadGemasCategoriaAcima(_client: SupabaseClient, _limit = 6): Promise<GemRow[]> {
-  return [];
+// `games_above_current_category` (Session 55) is precomputed at ingestion
+// time — matches whose category outranks the athlete's CURRENT category,
+// proving they've already competed successfully above where they're
+// registered now. Cheap to read directly, same pattern as every other
+// dashboard stat below (no more live LATERAL/categoria_rank() join — that
+// version alone pushed this query into a Postgres statement timeout, Session
+// 52). Note this is a DIFFERENT signal from `times_played_above_category`
+// (compares a match's category against the player_category recorded on that
+// SAME appearance — always 0 in practice, every source's parsers record the
+// player as playing in whatever category the match itself is).
+export async function loadGemasCategoriaAcima(client: SupabaseClient, limit = 6): Promise<GemRow[]> {
+  const { data, error } = await client.from("view_atleta_resumo").select(`${ROW_COLUMNS},games_above_current_category`).gt("games_above_current_category", 0).order("games_above_current_category", { ascending: false }).limit(limit);
+  if (error) throw error;
+  return (data ?? []).map((r) => ({ ...toAthleteRow(r), gamesAboveCategory: r.games_above_current_category }));
 }
 
 export async function loadInativos(client: SupabaseClient, limit = 6): Promise<InactiveRow[]> {
@@ -126,14 +126,18 @@ export async function loadBoardSummary(client: SupabaseClient, userId: string): 
 export interface DashboardHeroStats {
   sumulasCount: number;
   athletesCount: number;
-  topScorer: { name: string; goals: number } | null;
+  topScorer: { bid: number; name: string; goals: number } | null;
 }
 
+// "Destaque da rodada" ranks by `goals_last5` (Session 55) — goals over each
+// athlete's own last 5 matches, not the all-time season total it used to be
+// (that had no time window at all, despite the "da rodada" label). Same
+// "current form" window already used for the tactical board's ranking.
 export async function loadHeroStats(client: SupabaseClient): Promise<DashboardHeroStats> {
   const [sumulas, athletes, top] = await Promise.all([
     client.from("partidas_sumula").select("id", { count: "exact", head: true }),
     client.from("atletas").select("bid", { count: "exact", head: true }),
-    client.from("view_atleta_resumo").select("name,total_goals").gt("total_goals", 0).order("total_goals", { ascending: false }).limit(1).maybeSingle(),
+    client.from("atletas").select("bid,name,goals_last5").gt("goals_last5", 0).order("goals_last5", { ascending: false }).limit(1).maybeSingle(),
   ]);
   if (sumulas.error) throw sumulas.error;
   if (athletes.error) throw athletes.error;
@@ -141,6 +145,37 @@ export async function loadHeroStats(client: SupabaseClient): Promise<DashboardHe
   return {
     sumulasCount: sumulas.count ?? 0,
     athletesCount: athletes.count ?? 0,
-    topScorer: top.data ? { name: top.data.name, goals: top.data.total_goals } : null,
+    topScorer: top.data ? { bid: Number(top.data.bid), name: top.data.name, goals: top.data.goals_last5 } : null,
   };
+}
+
+export interface NotificationsSummary {
+  count: number;
+  contractsExpiring: number;
+  inactive: number;
+  newGems: number;
+}
+
+// Real signals only (Session 55 — the hero card used to show a hardcoded "2
+// novas atualizações" with no system behind it): among the user's OWN
+// favorited athletes, how many have a contract expiring/expired, have gone
+// 30+ days without a súmula, or currently qualify as "categoria acima".
+// "newGems" is really "current gems among favorites", not a true delta —
+// there's no per-user "last seen" state to detect a genuine change yet.
+export async function loadNotificationsSummary(client: SupabaseClient, userId: string): Promise<NotificationsSummary> {
+  const favs = await client.from("favoritos").select("bid_atleta").eq("user_id", userId);
+  if (favs.error) throw favs.error;
+  const bids = (favs.data ?? []).map((f) => f.bid_atleta);
+  if (bids.length === 0) return { count: 0, contractsExpiring: 0, inactive: 0, newGems: 0 };
+
+  const { data, error } = await client
+    .from("view_atleta_resumo")
+    .select("bid,contract_status,is_inactive_30d,games_above_current_category")
+    .in("bid", bids);
+  if (error) throw error;
+
+  const contractsExpiring = (data ?? []).filter((r) => r.contract_status === "expiring_soon" || r.contract_status === "expired").length;
+  const inactive = (data ?? []).filter((r) => r.is_inactive_30d).length;
+  const newGems = (data ?? []).filter((r) => r.games_above_current_category > 0).length;
+  return { count: contractsExpiring + inactive + newGems, contractsExpiring, inactive, newGems };
 }

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import {
-  ChevronLeft, TrendingUp, Globe, BadgeCheck, Clock3, Youtube, Trophy, Award, GitCompareArrows,
+  ChevronLeft, TrendingUp, Globe, BadgeCheck, Clock3, Youtube, Trophy, Award, GitCompareArrows, Square,
 } from "lucide-react";
 import { useT } from "@/lib/i18n/I18nProvider";
 import type { TranslationKey } from "@/lib/i18n/dictionaries";
@@ -14,7 +14,9 @@ import { EvolutionChart } from "@/components/atletas/dossie/EvolutionChart";
 import { ClubHistory } from "@/components/atletas/dossie/ClubHistory";
 import { AgentContact } from "@/components/atletas/dossie/AgentContact";
 import { formatDate, formatMonthYear } from "@/lib/format";
-import type { AtletaRecord, ConquistaRecord, AgenteContactRecord, EvolucaoPoint } from "@/lib/services/atletas";
+import type {
+  AtletaRecord, ConquistaRecord, AgenteContactRecord, EvolucaoPoint, CategoriaAcimaMatch, CardEvent,
+} from "@/lib/services/atletas";
 import { FavoriteButton } from "@/components/favorites/FavoriteButton";
 import { AthleteClaimPanel } from "@/components/atletas/dossie/AthleteClaimPanel";
 
@@ -23,9 +25,10 @@ const CONTRACT_TONE = {
 } as const;
 
 export function AtletaDossie({
-  atleta: a, conquistas, agent, evolucao,
+  atleta: a, conquistas, agent, evolucao, categoriaAcimaMatches, cardEvents,
 }: {
   atleta: AtletaRecord; conquistas: ConquistaRecord[]; agent: AgenteContactRecord | null; evolucao: EvolucaoPoint[];
+  categoriaAcimaMatches: CategoriaAcimaMatch[]; cardEvents: CardEvent[];
 }) {
   const { t } = useT();
 
@@ -123,9 +126,40 @@ export function AtletaDossie({
           <Panel title={t("dossie.evolution.title")}>
             <EvolutionChart data={evolucao} />
           </Panel>
+
+          {/* Gemas: categoria acima — standard section on every athlete's
+              dossiê (Session 55), not just favorited/gem ones on the
+              dashboard widget — an athlete with zero qualifying matches just
+              shows the empty state below, same pattern as Conquistas. */}
+          <Panel title={t("dossie.aboveCategory.title")}>
+            {categoriaAcimaMatches.length === 0 ? (
+              <p className="text-sm text-muted">{t("dossie.aboveCategory.empty")}</p>
+            ) : (
+              <>
+                <p className="mb-3 text-sm text-muted">
+                  {t("dossie.aboveCategory.summary")
+                    .replace("{count}", String(categoriaAcimaMatches.length))
+                    .replace("{category}", a.currentCategory ?? "—")}
+                </p>
+                <ul className="scroll-brand max-h-72 space-y-2 overflow-y-auto pr-1">
+                  {categoriaAcimaMatches.map((m, i) => (
+                    <li key={i} className="flex items-center justify-between gap-3 border border-border bg-background px-3 py-2 text-sm">
+                      <span className="flex items-center gap-2 min-w-0">
+                        <Badge tone="brand">{m.matchCategory}</Badge>
+                        <span className="truncate text-muted">{formatDate(m.matchDate)}</span>
+                      </span>
+                      <span className="shrink-0 text-xs text-muted">
+                        {m.minutesPlayed}&apos; · {m.goals}{t("dossie.stats.goalsShort")} · {m.assists}{t("dossie.stats.assistsShort")}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+          </Panel>
         </div>
 
-        {/* Right: agent/video + conquistas + history */}
+        {/* Right: agent/video + conquistas + cartões + history */}
         <div className="space-y-4">
           {isClaimed ? (
             <Panel title={t("dossie.agent.title")}>
@@ -166,6 +200,35 @@ export function AtletaDossie({
                       <span className="block text-xs text-muted">
                         {t(`dossie.conquistas.${c.tipo}` as TranslationKey)}{c.ano ? ` · ${c.ano}` : ""}
                       </span>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Panel>
+
+          <Panel title={t("dossie.cards.title")}>
+            {cardEvents.length === 0 ? (
+              <p className="text-sm text-muted">{t("dossie.cards.empty")}</p>
+            ) : (
+              <ul className="scroll-brand max-h-72 space-y-2 overflow-y-auto pr-1">
+                {cardEvents.map((c, i) => (
+                  <li key={i} className="flex items-center justify-between gap-3 border border-border bg-background px-3 py-2 text-sm">
+                    <span className="flex items-center gap-2 min-w-0">
+                      <Badge tone="neutral">{c.matchCategory}</Badge>
+                      <span className="truncate text-muted">{formatDate(c.matchDate)}</span>
+                    </span>
+                    <span className="flex shrink-0 items-center gap-2">
+                      {c.yellowCards > 0 && (
+                        <span className="flex items-center gap-1 text-xs font-semibold text-warning">
+                          <Square size={11} className="fill-warning" /> {c.yellowCards}
+                        </span>
+                      )}
+                      {c.redCards > 0 && (
+                        <span className="flex items-center gap-1 text-xs font-semibold text-danger">
+                          <Square size={11} className="fill-danger" /> {c.redCards}
+                        </span>
+                      )}
                     </span>
                   </li>
                 ))}

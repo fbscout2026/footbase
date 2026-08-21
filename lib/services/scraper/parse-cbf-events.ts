@@ -33,6 +33,13 @@ function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+/** Collapse pdf-parse's word-wrapped "Motivo:" text into one clean line. */
+function cleanReason(raw: string | undefined): string | null {
+  if (!raw) return null;
+  const cleaned = raw.replace(/\s+/g, " ").trim();
+  return cleaned || null;
+}
+
 /** Cut the text between two section markers (start inclusive of content, end exclusive). */
 function section(text: string, startRe: RegExp, endRe: RegExp): string {
   const s = text.search(startRe);
@@ -159,20 +166,39 @@ export function buildAppearances(
   // `.*?Motivo:` (not `\s*Motivo:`): same reason as subRe below — the team token is
   // only an 8-char prefix, so any leftover name/"/UF" text before "Motivo:" needs to
   // be skipped, not required to be whitespace.
-  const yellowRe = new RegExp(`(?:\\+?\\d+(?::\\d{2})?)\\s*(1T|2T)\\s*(\\d{1,2}).*?(${teamToken}).*?Motivo:`, "g");
+  //
+  // The captured reason (group 4) runs from right after "Motivo:" up to the next
+  // event's own time+period token (or the end of the block) — real reason text is
+  // word-wrapped across multiple lines by pdf-parse (confirmed live, Session 55:
+  // "Motivo: A1.13.  Dar uma entrada ... temerária na\ndisputa de bola "), so this
+  // needs `[\s\S]*?` (matches newlines too), not `.*?`.
+  const yellowRe = new RegExp(
+    `(?:\\+?\\d+(?::\\d{2})?)\\s*(1T|2T)\\s*(\\d{1,2}).*?(${teamToken}).*?Motivo:\\s*([\\s\\S]*?)(?=(?:\\+?\\d+(?::\\d{2})?)\\s*(?:1T|2T)|$)`,
+    "g",
+  );
   const yellowCount = new Map<string, number>();
+  const yellowReasons = new Map<string, string[]>();
   for (const m of yellowBlock.matchAll(yellowRe)) {
     const key = `${sideOf(m[3]!)}:${Number(m[2]!)}`;
     yellowCount.set(key, (yellowCount.get(key) ?? 0) + 1);
+    const reason = cleanReason(m[4]);
+    if (reason) (yellowReasons.get(key) ?? yellowReasons.set(key, []).get(key)!).push(reason);
   }
 
   // --- Red cards -----------------------------------------------------------
   const redBlock = section(text, /Cartões Vermelhos/i, /Comissão|Ocorrências|Substituições|Confederação/i);
   const redAt = new Map<string, number>();
+  const redReasons = new Map<string, string>();
   if (!/NÃO HOUVE EXPULS/i.test(redBlock)) {
-    const redRe = new RegExp(`(\\+?\\d+(?::\\d{2})?)\\s*(1T|2T)\\s*(\\d{1,2}).*?(${teamToken}).*?Motivo:`, "g");
+    const redRe = new RegExp(
+      `(\\+?\\d+(?::\\d{2})?)\\s*(1T|2T)\\s*(\\d{1,2}).*?(${teamToken}).*?Motivo:\\s*([\\s\\S]*?)(?=(?:\\+?\\d+(?::\\d{2})?)\\s*(?:1T|2T)|$)`,
+      "g",
+    );
     for (const m of redBlock.matchAll(redRe)) {
-      redAt.set(`${sideOf(m[4]!)}:${Number(m[3]!)}`, timeline(m[1]!, m[2]!));
+      const key = `${sideOf(m[4]!)}:${Number(m[3]!)}`;
+      redAt.set(key, timeline(m[1]!, m[2]!));
+      const reason = cleanReason(m[5]);
+      if (reason) redReasons.set(key, reason);
     }
   }
 
@@ -225,6 +251,7 @@ export function buildAppearances(
 
       const goalsScored = goals.filter((g) => !g.ownGoal && g.scorer === side && g.shirt === p.shirt).length;
 
+      const redCard = red != null || (yellowCount.get(key) ?? 0) >= 2 ? 1 : 0;
       appearances.push({
         bid: p.bid,
         side,
@@ -233,8 +260,10 @@ export function buildAppearances(
         goals: goalsScored,
         assists: 0, // not present in the súmula
         yellowCards: Math.min(2, yellowCount.get(key) ?? 0),
-        redCards: red != null || (yellowCount.get(key) ?? 0) >= 2 ? 1 : 0,
+        redCards: redCard,
         cleanSheet: p.isGoalkeeper && goalsAgainstWhileOn === 0,
+        yellowCardReasons: yellowReasons.get(key),
+        redCardReasons: redCard && redReasons.has(key) ? [redReasons.get(key)!] : undefined,
       });
     }
   }

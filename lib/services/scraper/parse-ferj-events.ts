@@ -134,6 +134,8 @@ export interface FerjParsedAppearance {
   yellowCards: number;
   redCards: number;
   cleanSheet: boolean; // always false — no goalkeeper marker in either source, never guessed
+  yellowCardReasons?: (string | null)[];
+  redCardReasons?: (string | null)[];
 }
 
 export interface BuildFerjAppearancesResult {
@@ -202,7 +204,9 @@ export function buildFerjAppearances(
   }
   const goals: GoalEvent[] = [];
   const yellowCount = new Map<string, number>();
+  const yellowReasons = new Map<string, string[]>();
   const redAt = new Map<string, number>();
+  const redReasons = new Map<string, string>();
   const subOnAt = new Map<string, number>();
   const subOffAt = new Map<string, number>();
 
@@ -218,8 +222,14 @@ export function buildFerjAppearances(
       const player = ev.playerName ? findPlayer(side, ev.playerName) : undefined;
       if (player) {
         const key = `${side}:${player.bira}`;
-        if (ev.type === "CARTÃO VERMELHO") redAt.set(key, at);
-        else yellowCount.set(key, (yellowCount.get(key) ?? 0) + 1);
+        const reason = ev.motivo?.trim() || null;
+        if (ev.type === "CARTÃO VERMELHO") {
+          redAt.set(key, at);
+          if (reason) redReasons.set(key, reason);
+        } else {
+          yellowCount.set(key, (yellowCount.get(key) ?? 0) + 1);
+          if (reason) (yellowReasons.get(key) ?? yellowReasons.set(key, []).get(key)!).push(reason);
+        }
       }
     } else if (ev.type === "SUBSTITUICAO") {
       const entered = ev.enteredName ? findPlayer(side, ev.enteredName) : undefined;
@@ -246,6 +256,7 @@ export function buildFerjAppearances(
       const minutesPlayed = Math.max(0, Math.min(130, Math.round(minutesExit - entry)));
 
       const goalsScored = goals.filter((g) => !g.ownGoal && g.side === side && g.bira === p.bira).length;
+      const redCard = red != null || (yellowCount.get(key) ?? 0) >= 2 ? 1 : 0;
 
       appearances.push({
         bira: p.bira,
@@ -255,8 +266,10 @@ export function buildFerjAppearances(
         goals: goalsScored,
         assists: 0, // not present in either source
         yellowCards: Math.min(2, yellowCount.get(key) ?? 0),
-        redCards: red != null || (yellowCount.get(key) ?? 0) >= 2 ? 1 : 0,
+        redCards: redCard,
         cleanSheet: false, // no goalkeeper marker in either source — never guessed
+        yellowCardReasons: yellowReasons.get(key),
+        redCardReasons: redCard && redReasons.has(key) ? [redReasons.get(key)!] : undefined,
       });
     }
   }

@@ -72,6 +72,8 @@ export interface FpfParsedAppearance {
   yellowCards: number;
   redCards: number;
   cleanSheet: boolean; // always false here — see module doc comment (no GK marker in this source)
+  yellowCardReasons?: (string | null)[];
+  redCardReasons?: (string | null)[];
 }
 
 const TIME = String.raw`(\+\s*\d{1,2}|\d{1,3}(?::\d{2})?|-)`;
@@ -109,20 +111,32 @@ export function buildFpfAppearances(
 
   // --- Yellow cards ("Advertências") ----------------------------------------
   const yellowBlock = section(text, /Advertências\s+Equipe/i, /Expulsões|Comissão/i);
-  const yellowRe = new RegExp(`${teamAlt}(\\d{1,2})([^\\d]+?)${TIME}${PERIOD}\\s*Motivo:`, "g");
+  const yellowRe = new RegExp(`${teamAlt}(\\d{1,2})([^\\d]+?)${TIME}${PERIOD}\\s*Motivo:\\s*(.*?)(?=${teamAlt}\\d|$)`, "g");
   const yellowCount = new Map<string, number>();
+  const yellowReasons = new Map<string, string[]>();
   for (const m of yellowBlock.matchAll(yellowRe)) {
     const key = `${sideOf(m[1]!)}:${Number(m[2]!)}`;
     yellowCount.set(key, (yellowCount.get(key) ?? 0) + 1);
+    const reason = m[6]?.replace(/\s+/g, " ").trim() || null;
+    if (reason) (yellowReasons.get(key) ?? yellowReasons.set(key, []).get(key)!).push(reason);
   }
 
   // --- Red cards ("Expulsões") -----------------------------------------------
   const redBlock = section(text, /Expulsões/i, /Motivo de atraso|Comissão|Ocorrências/i);
   const redAt = new Map<string, number>();
+  const redReasons = new Map<string, string>();
   if (!/NÃO HOUVE EXPULS/i.test(redBlock)) {
-    const redRe = new RegExp(`${teamAlt}(\\d{1,2})([^\\d]+?)${TIME}${PERIOD}\\s*Motivo:`, "g");
+    const redRe = new RegExp(`${teamAlt}(\\d{1,2})([^\\d]+?)${TIME}${PERIOD}\\s*Motivo:\\s*(.*?)(?=${teamAlt}\\d|$)`, "g");
     for (const m of redBlock.matchAll(redRe)) {
-      redAt.set(`${sideOf(m[1]!)}:${Number(m[2]!)}`, timeline(m[5]!, m[6]!));
+      const key = `${sideOf(m[1]!)}:${Number(m[2]!)}`;
+      // (Session 55) `m[4]`/`m[5]` are TIME/PERIOD — this call previously read
+      // `m[5]`/`m[6]`, one index too high (no reason group existed yet, so
+      // `m[6]` was always `undefined`), meaning every red card's minute
+      // silently fell back to 0. Fixed while adding the reason group here,
+      // since the two are directly adjacent in this same regex.
+      redAt.set(key, timeline(m[4]!, m[5]!));
+      const reason = m[6]?.replace(/\s+/g, " ").trim() || null;
+      if (reason) redReasons.set(key, reason);
     }
   }
 
@@ -156,6 +170,7 @@ export function buildFpfAppearances(
       const minutesPlayed = Math.max(0, Math.min(130, Math.round(minutesExit - entry)));
 
       const goalsScored = goals.filter((g) => !g.ownGoal && g.scorer === side && g.shirt === p.shirt).length;
+      const redCard = red != null || (yellowCount.get(key) ?? 0) >= 2 ? 1 : 0;
 
       appearances.push({
         registro: p.registro,
@@ -165,8 +180,10 @@ export function buildFpfAppearances(
         goals: goalsScored,
         assists: 0, // not present in the súmula
         yellowCards: Math.min(2, yellowCount.get(key) ?? 0),
-        redCards: red != null || (yellowCount.get(key) ?? 0) >= 2 ? 1 : 0,
+        redCards: redCard,
         cleanSheet: false, // no goalkeeper marker in this source — never guessed
+        yellowCardReasons: yellowReasons.get(key),
+        redCardReasons: redCard && redReasons.has(key) ? [redReasons.get(key)!] : undefined,
       });
     }
   }

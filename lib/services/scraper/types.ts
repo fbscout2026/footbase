@@ -53,6 +53,13 @@ export interface ParsedAppearance {
   // "current club", which silently broke squad listings and `view_clube_resumo`'s
   // athlete counts even though match/appearance data itself was correct).
   side?: "home" | "away";
+  // Free-text reason straight from the súmula's own "Motivo:" line — one
+  // entry per card (yellowCards can be 0-2, redCards 0-1), same index order
+  // as they appear in the source. Optional/backward-compatible like `side`
+  // above; `undefined`/shorter-than-count just means this source's parser
+  // doesn't capture reasons (yet) for this card, not an error.
+  yellowCardReasons?: (string | null)[];
+  redCardReasons?: (string | null)[];
 }
 
 export interface ParsedMatch {

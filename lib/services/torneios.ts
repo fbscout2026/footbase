@@ -10,7 +10,6 @@ export interface TorneioExplorerData {
 }
 
 export interface TorneioDetail extends TorneioSummary {
-  federacaoNome: string | null;
   paisNome: string | null;
   continente: string | null;
   standings: StandingRow[];
@@ -30,7 +29,7 @@ export async function loadTorneioExplorer(client: SupabaseClient): Promise<Torne
     client.from("confederacoes").select("id,continente,codigo,nome").order("continente"),
     client.from("paises").select("id,confederacao_id,nome,codigo").order("nome"),
     client.from("federacoes").select("id,pais_id,nome,sigla,tipo").order("sigla"),
-    client.from("torneios").select("id,name,federation,federacao_id,category,year,federacoes(sigla)").order("name"),
+    client.from("torneios").select("id,name,federation,federacao_id,category,year,federacoes(nome,sigla)").order("name"),
   ]);
   if (confRes.error) throw confRes.error;
   if (paisRes.error) throw paisRes.error;
@@ -46,7 +45,8 @@ export async function loadTorneioExplorer(client: SupabaseClient): Promise<Torne
       name: t.name,
       federationText: t.federation,
       federacaoId: t.federacao_id ? String(t.federacao_id) : null,
-      federacaoSigla: one<{ sigla?: string }>(t.federacoes as never)?.sigla ?? null,
+      federacaoSigla: one<{ sigla?: string; nome?: string }>(t.federacoes as never)?.sigla ?? null,
+      federacaoNome: one<{ sigla?: string; nome?: string }>(t.federacoes as never)?.nome ?? null,
       category: t.category,
       year: Number(t.year),
     })),
