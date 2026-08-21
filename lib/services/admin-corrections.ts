@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { formatAthleteCode } from "@/lib/format";
 
 export type CorrectionSource = "club" | "athlete";
 export type CorrectionStatus = "pending" | "approved" | "rejected";
@@ -57,7 +58,7 @@ export async function loadCorrections(client: SupabaseClient): Promise<AdminCorr
     return {
       id: String(r.id),
       source: "athlete",
-      targetLabel: `${at?.name ?? "—"}${r.bid_atleta ? ` · BID ${r.bid_atleta}` : ""}`,
+      targetLabel: `${at?.name ?? "—"}${r.bid_atleta ? ` · ${formatAthleteCode(Number(r.bid_atleta))}` : ""}`,
       fieldName: String(r.field_name),
       currentValue: r.current_value as string | null,
       suggestedValue: String(r.suggested_value),

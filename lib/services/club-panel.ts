@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ClubPanelAccess, RosterRequestAction, TournamentStatus } from "@/lib/club-panel-rules";
+import { formatAthleteCode } from "@/lib/format";
 
 export type SourceStatus = "club_declared" | "admin_confirmed" | "official_confirmed";
 export type ReviewStatus = "pending" | "approved" | "rejected" | "conflict";
@@ -166,7 +167,7 @@ export async function loadClubPanel(client: SupabaseClient, clubId: string, acce
     divergences: (divergenceResult.data ?? []).map((item) => ({ id: item.id, domain: item.domain as ClubDivergenceRecord["domain"], fieldName: item.field_name, officialSource: item.official_source, status: item.status as ClubDivergenceRecord["status"], createdAt: item.created_at })),
     favorites: (favoritesResult.data ?? []).map((item) => {
       const athlete = Array.isArray(item.atletas) ? item.atletas[0] : item.atletas;
-      return { id: item.id, bid: Number(item.bid_atleta), rating: item.nota ?? 50, notes: item.notas, athleteName: athlete?.name ?? `BID ${item.bid_atleta}`, athleteNickname: athlete?.apelido ?? null, position: athlete?.main_position ?? null, category: athlete?.current_category ?? null };
+      return { id: item.id, bid: Number(item.bid_atleta), rating: item.nota ?? 50, notes: item.notas, athleteName: athlete?.name ?? formatAthleteCode(Number(item.bid_atleta)), athleteNickname: athlete?.apelido ?? null, position: athlete?.main_position ?? null, category: athlete?.current_category ?? null };
     }),
     availableCategories: (categoryOrderResult.data ?? []).map((item) => item.categoria),
   };
