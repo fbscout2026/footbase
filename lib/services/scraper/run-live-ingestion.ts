@@ -605,6 +605,8 @@ async function processFgfSource(admin: SupabaseClient, cfg: FgfSourceConfig, dry
         awaySourceKey: `fgf-club:${fgfClubSlug(ref.awayName)}`,
         homeCrestUrl: ref.homeCrestUrl,
         awayCrestUrl: ref.awayCrestUrl,
+        federation: "FGF",
+        clubFederacao: "FGF",
       });
       const reconciliationErrors = reconcileParsedMatch(match);
       if (reconciliationErrors.length > 0) {

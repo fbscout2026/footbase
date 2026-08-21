@@ -59,6 +59,25 @@ export interface ParseCbfOptions {
    * them athletes stay provisional (no seed). Fetched by the discovery layer (6.3).
    */
   profiles?: CbfAthleteProfile[];
+  /**
+   * Overrides the tournament's `federation` label — needed by any non-CBF
+   * source that reuses this parser (e.g. FGF, which shares the "Súmula
+   * On-Line" template). Defaults to "CBF". Session 55 incident: FGF calls
+   * this parser without setting this, so every FGF tournament got recorded
+   * with `federation: "CBF"` — folding Gaúcha state tournaments into the
+   * national federation's bucket in the Torneios filter and `federacoes`
+   * linkage. Any adapter wiring a new source through this parser must set
+   * this explicitly.
+   */
+  federation?: string;
+  /**
+   * Overrides `home`/`away`'s `federacao` (always `null` otherwise — even for
+   * real CBF clubs, that's the pre-existing/intentional behavior). Same
+   * rationale as `federation` above: any non-CBF source reusing this parser
+   * must set its own clubs' federation explicitly, or its clubs silently
+   * show no federation anywhere in the club directory/profile.
+   */
+  clubFederacao?: string;
 }
 
 const FEDERATION = "CBF";
@@ -93,18 +112,31 @@ function cleanName(raw: string): string {
 // recovered from the glued text alone (until the CBF athlete-profile endpoint is
 // wired — see module header — the súmula is the only name source).
 //
-// Two patterns cover most real rows (confirmed against a live fixture, Session 52):
+// Three patterns cover most real rows:
 //  1. The apelido itself got truncated ("Gabriel We ...Gabriel Laizo Werneck") — the
 //     literal "..."/"…" marks the boundary; everything after it is the full name.
-//  2. The apelido is a short, case-insensitive prefix of the full name and both are
-//     glued with no truncation in between ("WeversonWeverson Guilherme M ...") — find
-//     the repeat and keep the suffix.
-// When neither pattern matches (e.g. "Da Mata" as a nickname for "João Pedro do
+//     (Confirmed against a live fixture, Session 52.)
+//  2. The apelido is a GENUINELY DIFFERENT word from the full name — most real
+//     nicknames ("Cadu" for "Carlos Eduardo", "Guga" for "Gustavo") — glued with no
+//     separator. The real name always starts where a capital letter (not the very
+//     first character, not immediately after a space) is followed by a lowercase
+//     letter: that's the start of a real Title-case word, regardless of what the
+//     apelido itself looks like (lowercase, Title-case, ALL-CAPS, or digits, e.g. a
+//     shirt-number-disambiguated apelido like "Maycon 15Maycon..."). (Session 55:
+//     confirmed live against ~8,200 already-seeded athletes — this pattern alone
+//     covers roughly 19% of the whole table, ~50x more than pattern 3 below; a
+//     dedicated backfill applies this same function to the already-corrupted
+//     `atletas.name` values.)
+//  3. The apelido is an exact (case/accent-insensitive) repeat of the start of the
+//     full name, in the SAME case as it — almost always both ALL-CAPS, which defeats
+//     pattern 2 above since there is no lowercase transition to key off
+//     ("OTAVIOOTAVIO SCHELL MACIEL").
+// When none of these match (e.g. "Da Mata" as a nickname for "João Pedro do
 // Nascimento..." — not a prefix at all, same ambiguity FERJ's súmulas have; or an
-// abbreviated apelido like "JOSÉ H." for "José Henrique" — the abbreviation itself
-// isn't a literal prefix), there is no reliable way to recover the split from text
-// alone, so the glued blob is kept as-is: no worse than before, still a usable
-// display name.
+// apelido and full name that are both ALL-CAPS AND share no literal repeat, like
+// "MATHEUZINHOMATHEUS DE OLIVEIRA" — "Matheuzinho" isn't a prefix of "Matheus"), there
+// is no reliable way to recover the split from text alone, so the glued blob is kept
+// as-is: no worse than before, still a usable display name.
 //
 // The repeat check is accent-INSENSITIVE, not just case-insensitive (confirmed live,
 // Session 52: "VINÍCIUSVinicius Rodrigues M" — the apelido carries the accent, the
@@ -113,19 +145,49 @@ function foldForCompare(s: string): string {
   return s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 }
 
-function nomeCompletoFromGlued(blob: string): string {
+export function nomeCompletoFromGlued(blob: string): string {
   const ellipsisAt = blob.search(/\.\.\.|…/);
   if (ellipsisAt !== -1) {
     const after = blob.slice(ellipsisAt).replace(/^(?:\.\.\.|…)\s*/, "");
     if (after.trim()) return cleanName(after);
-    blob = blob.slice(0, ellipsisAt); // trailing-only truncation; try the repeat check below
+    blob = blob.slice(0, ellipsisAt); // trailing-only truncation; try the checks below
   }
+
+  // Take the LAST such transition, not the first — a glued apelido can itself
+  // contain another transition (e.g. a shirt number AND a nickname both
+  // glued in front: "1185 2ChocolateDavi Guimaraes..."), and the real full
+  // name is always properly spaced from here on, so it can never produce a
+  // further match; the last match found is always the deepest, correct
+  // boundary.
+  let patternAMatch: string | null = null;
+  for (let i = 1; i < blob.length - 1; i++) {
+    const prev = blob[i - 1]!;
+    const cur = blob[i]!;
+    const next = blob[i + 1]!;
+    // `prev` must be a real letter/digit — not just "not a space". A capital
+    // after punctuation (apostrophe, hyphen) is normal name-internal
+    // structure, not a glue point: "D'Alessandro" is one real surname, never
+    // "D'" + "Alessandro" glued together.
+    if (/[A-ZÀ-Ý]/.test(cur) && /[a-zà-ÿ]/.test(next) && /[a-zà-ÿA-ZÀ-Ý0-9]/.test(prev)) {
+      const candidate = cleanName(blob.slice(i));
+      if (candidate.split(" ").filter(Boolean).length >= 2 || candidate.length >= 8) {
+        patternAMatch = candidate;
+      }
+    }
+  }
+  if (patternAMatch !== null) return patternAMatch;
+
+  // `blob[i]` must be a capital letter — a real name never starts a word
+  // lowercase, so a match landing mid-word (e.g. "Dydye" coincidentally
+  // contains "dy" twice — "Dy" + "dye" — with no real apelido/name split at
+  // all) is a false positive, not a genuine repeat.
   const folded = foldForCompare(blob);
   for (let i = 2; i <= Math.floor(blob.length / 2); i++) {
-    if (folded.slice(i).startsWith(folded.slice(0, i)) && folded[i - 1] !== folded[i]) {
+    if (folded.slice(i).startsWith(folded.slice(0, i)) && /[A-ZÀ-Ý]/.test(blob[i]!)) {
       return cleanName(blob.slice(i));
     }
   }
+
   return cleanName(blob);
 }
 
@@ -209,14 +271,14 @@ export function parseCbfSumula(rawText: string, opts: ParseCbfOptions = {}): Cbf
     sourceKey: opts.homeSourceKey ?? provisionalSourceKey(homeLabel.name, homeLabel.state),
     name: homeLabel.name,
     state: homeLabel.state,
-    federacao: null,
+    federacao: opts.clubFederacao ?? null,
     crestUrl: opts.homeCrestUrl ?? null,
   };
   const away: ParsedClub = {
     sourceKey: opts.awaySourceKey ?? provisionalSourceKey(awayLabel.name, awayLabel.state),
     name: awayLabel.name,
     state: awayLabel.state,
-    federacao: null,
+    federacao: opts.clubFederacao ?? null,
     crestUrl: opts.awayCrestUrl ?? null,
   };
 
@@ -259,7 +321,7 @@ export function parseCbfSumula(rawText: string, opts: ParseCbfOptions = {}): Cbf
   });
 
   const match: ParsedMatch = {
-    tournament: { name: tournamentName, federation: FEDERATION, year, category },
+    tournament: { name: tournamentName, federation: opts.federation ?? FEDERATION, year, category },
     matchDate,
     matchCategory: category,
     rodada,

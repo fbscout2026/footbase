@@ -269,6 +269,81 @@ export async function loadEvolucaoReal(client: SupabaseClient, bid: number, limi
   });
 }
 
+// Same ranks as the `categoria_ordem` table (supabase/schema.sql) — kept in
+// sync manually since this runs client-side, not as a DB round-trip per
+// candidate.
+const CATEGORIA_RANK: Record<string, number> = {
+  "SUB-11": 1, "SUB-12": 2, "SUB-13": 3, "SUB-14": 4, "SUB-15": 5,
+  "SUB-16": 6, "SUB-17": 7, "SUB-18": 8, "SUB-19": 9, "SUB-20": 10,
+};
+
+export interface RecentStats {
+  totalMatches: number;
+  totalMinutes: number;
+  totalGoals: number;
+  totalAssists: number;
+  totalYellowCards: number;
+  totalRedCards: number;
+  totalCleanSheets: number;
+  timesPlayedAboveCategory: number;
+}
+
+const EMPTY_RECENT_STATS: RecentStats = {
+  totalMatches: 0, totalMinutes: 0, totalGoals: 0, totalAssists: 0,
+  totalYellowCards: 0, totalRedCards: 0, totalCleanSheets: 0, timesPlayedAboveCategory: 0,
+};
+
+/**
+ * Each athlete's stats over just their most recent `limit` appearances (not
+ * the season aggregate on `atletas`/`view_atleta_resumo`) — used by the
+ * tactical board's ranking (Session 55: switched from season-to-date to
+ * "últimos 5 jogos" per explicit user request, so a player's current form
+ * outweighs a strong start to the season they've since fallen off from).
+ * One batched query for every requested bid (never N+1) — a single
+ * favorited athlete's own appearance count is always small, so fetching all
+ * of them and taking the most recent `limit` client-side is simple and safe,
+ * same approach as `loadEvolucaoReal`.
+ */
+export async function loadRecentStatsByBids(client: SupabaseClient, bids: number[], limit = 5): Promise<Map<number, RecentStats>> {
+  const result = new Map<number, RecentStats>();
+  if (bids.length === 0) return result;
+
+  const { data, error } = await client
+    .from("atuacoes_sumula")
+    .select("bid_atleta,minutes_played,goals,assists,yellow_cards,red_cards,clean_sheet,player_category,partidas_sumula!inner(match_date,match_category)")
+    .in("bid_atleta", bids);
+  if (error) throw error;
+
+  const byBid = new Map<number, any[]>();
+  for (const row of data ?? []) {
+    const list = byBid.get(row.bid_atleta) ?? [];
+    list.push(row);
+    byBid.set(row.bid_atleta, list);
+  }
+
+  for (const bid of bids) {
+    const rows = (byBid.get(bid) ?? [])
+      .slice()
+      .sort((a, b) => String(b.partidas_sumula?.match_date ?? "").localeCompare(String(a.partidas_sumula?.match_date ?? "")))
+      .slice(0, limit);
+
+    const stats: RecentStats = { ...EMPTY_RECENT_STATS, totalMatches: rows.length };
+    for (const r of rows) {
+      stats.totalMinutes += r.minutes_played ?? 0;
+      stats.totalGoals += r.goals ?? 0;
+      stats.totalAssists += r.assists ?? 0;
+      stats.totalYellowCards += r.yellow_cards ?? 0;
+      stats.totalRedCards += r.red_cards ?? 0;
+      if (r.clean_sheet) stats.totalCleanSheets += 1;
+      const matchRank = CATEGORIA_RANK[r.partidas_sumula?.match_category ?? ""];
+      const playerRank = CATEGORIA_RANK[r.player_category ?? ""];
+      if (matchRank != null && playerRank != null && matchRank > playerRank) stats.timesPlayedAboveCategory += 1;
+    }
+    result.set(bid, stats);
+  }
+  return result;
+}
+
 export interface ConquistaRecord {
   id: string;
   tipo: "titulo" | "premio";
