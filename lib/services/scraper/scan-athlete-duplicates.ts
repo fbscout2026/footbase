@@ -1,4 +1,6 @@
-// FOOTBASE Session 55 — read-only athlete duplicate scan.
+// FOOTBASE Session 55 — athlete duplicate scan. Read-only by default; --write
+// persists real candidates for admin review in the UI (see module doc below the
+// `findDuplicateGroups` for why the matching stayed conservative).
 //
 // Companion to provisional-athlete.ts: since ingestion never blocks on identity
 // review (every unresolved athlete gets a PROVISIONAL bid immediately — see that
@@ -8,30 +10,26 @@
 // (CLAUDE.md "Fusão de clubes entre fontes") — this script is the athlete
 // equivalent of the club dedup scan that fed `merge-clube.ts`.
 //
-// READ-ONLY. NEVER auto-merges on name alone — a shared name is exactly the weak
-// signal `resolve-athlete-identity.ts` already refuses to act on by itself
-// (confirmed real false positives for clubs with this same pattern — CLAUDE.md's
-// "Democrata Futebol Clube" vs "Esporte Clube Democrata" case). Three tiers:
-//   FORTE      — exact name match + every member shares the same known birth_date.
-//   CLUBE+NOME — name match (exact OR tolerant of spelling/formatting variants,
-//                see below) + every member currently at the SAME real club. This
-//                is the athlete equivalent of the club scan's "crest+state"
-//                signal (CLAUDE.md) — the second, independent confirming fact
-//                that makes a name match trustworthy instead of coincidental
-//                (explicit product decision, Session 55).
-//   fraco      — name match only, no club/birth_date confirmation. Never a merge
-//                candidate on its own; printed for visibility only.
+// NEVER auto-merges on name alone — a shared name is exactly the weak signal
+// `resolve-athlete-identity.ts` already refuses to act on by itself (confirmed real
+// false positives for clubs with this same pattern — CLAUDE.md's "Democrata
+// Futebol Clube" vs "Esporte Clube Democrata" case, and confirmed AGAIN live for
+// athletes in this exact scan — see `findDuplicateGroups`'s doc). Four tiers:
+//   FORTE        — exact name match + every member shares the same known birth_date.
+//   CLUBE+NOME   — exact name match + every member currently at the SAME real club.
+//                  The athlete equivalent of the club scan's "crest+state" signal
+//                  (CLAUDE.md) — the second, independent confirming fact that makes
+//                  a name match trustworthy instead of coincidental. The ONLY tiers
+//                  `--write` persists — real merge candidates.
+//   revisar-nome — a tolerant match only (first+last token, or glued-name
+//                  containment) — visibility only, printed but NEVER persisted or
+//                  treated as a candidate; two rounds of testing this against real
+//                  data both produced false positives.
+//   fraco        — name match only, no club/birth_date confirmation.
 //
-// Name matching beyond exact-normalized also catches two real, already-confirmed
-// data-quality patterns (Session 55) that would otherwise hide a genuine
-// duplicate: (1) FIRST+LAST token match (catches an abbreviated/missing middle
-// name, e.g. "Carlos Gabriel S. Felicissimo" vs "Carlos Gabriel Silva
-// Felicissimo"); (2) glued-name containment WITHIN the same club's roster only
-// (catches the apelido+full-name gluing bug, e.g. "BRENOBRENNO ALVES DA SILVA"
-// vs "BRENO ALVES DA SILVA" — bounded to one club's roster so this stays cheap
-// and doesn't risk a false positive across two unrelated large rosters).
-//
-// Run: node --experimental-strip-types lib/services/scraper/scan-athlete-duplicates.ts
+// Run:
+//   node --experimental-strip-types lib/services/scraper/scan-athlete-duplicates.ts            # read-only report
+//   node --experimental-strip-types lib/services/scraper/scan-athlete-duplicates.ts --write     # + persists forte/clube+nome to atleta_duplicate_candidates
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { readFileSync, existsSync } from "node:fs";
@@ -175,8 +173,33 @@ export function findDuplicateGroups(athletes: AthleteRow[]): DuplicateGroup[] {
   return results;
 }
 
+/**
+ * Persists 'forte'/'clube+nome' pairs into `atleta_duplicate_candidates` (Session
+ * 55) — makes the scan's findings visible/actionable in /admin instead of only
+ * ever existing in whoever's terminal happened to run this script. `onConflict:
+ * "bid_a,bid_b", ignoreDuplicates: true` never overwrites a row an admin already
+ * resolved (merged/dismissed) — a re-run only ever adds genuinely NEW candidates.
+ */
+async function persistCandidates(admin: SupabaseClient, groups: DuplicateGroup[]): Promise<number> {
+  const rows: { bid_a: number; bid_b: number; tier: "forte" | "clube+nome" }[] = [];
+  for (const group of groups) {
+    if (group.tier !== "forte" && group.tier !== "clube+nome") continue;
+    const bids = group.members.map((m) => m.bid).sort((a, b) => a - b);
+    for (let i = 0; i < bids.length; i++) {
+      for (let j = i + 1; j < bids.length; j++) {
+        rows.push({ bid_a: bids[i]!, bid_b: bids[j]!, tier: group.tier });
+      }
+    }
+  }
+  if (rows.length === 0) return 0;
+  const { error } = await admin.from("atleta_duplicate_candidates").upsert(rows, { onConflict: "bid_a,bid_b", ignoreDuplicates: true });
+  if (error) throw error;
+  return rows.length;
+}
+
 async function main(): Promise<void> {
   loadEnvLocal();
+  const write = process.argv.includes("--write");
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) throw new Error("missing NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY");
@@ -218,7 +241,12 @@ async function main(): Promise<void> {
     `[scan-atleta] resumo: ${groups.length} grupo(s) — ${counts.forte} forte(s), ${counts["clube+nome"]} clube+nome (candidatos reais de fusão — SEMPRE confira o nome completo antes de rodar --confirm), ` +
       `${counts["revisar-nome"]} pra revisar manualmente (nome parecido mas não idêntico), ${counts.fraco} fraco(s) (nunca fundir só por isso).`,
   );
-  console.log(`[scan-atleta] Nada foi escrito — este script é somente leitura. Use merge-atleta.ts <loserId> <winnerId> [--confirm] para fundir um par confirmado.`);
+  if (write) {
+    const inserted = await persistCandidates(admin, groups);
+    console.log(`[scan-atleta] --write passado: ${inserted} candidato(s) 'forte'/'clube+nome' enviado(s) pra atleta_duplicate_candidates (linhas já resolvidas antes nunca são sobrescritas). Revise em /admin.`);
+  } else {
+    console.log(`[scan-atleta] Nada foi escrito — este script é somente leitura por padrão. Rode com --write para salvar os candidatos 'forte'/'clube+nome' em atleta_duplicate_candidates (revisáveis em /admin), ou use merge-atleta.ts <loserId> <winnerId> [--confirm] direto pelo terminal.`);
+  }
 }
 
 main().catch((e) => {

@@ -9,6 +9,7 @@ import { AdminCorrections } from "@/components/admin/AdminCorrections";
 import { AdminIngestion } from "@/components/admin/AdminIngestion";
 import { AdminRepresentation } from "@/components/admin/AdminRepresentation";
 import { AdminFederations } from "@/components/admin/AdminFederations";
+import { AdminDuplicates } from "@/components/admin/AdminDuplicates";
 import type { AdminUser } from "@/lib/services/admin-users";
 import type { AdminClaim } from "@/lib/services/admin-claims";
 import type { AdminCorrection } from "@/lib/services/admin-corrections";
@@ -16,21 +17,23 @@ import type { ScrapingLog } from "@/lib/services/admin-ingestion";
 import type { RepresentedAthlete, EligibleAgent, TransferRecord } from "@/lib/services/admin-representation";
 import type { FederationHierarchy } from "@/lib/services/admin-federations";
 import type { PromotionRecord } from "@/lib/services/admin-promotions";
-import { Activity, ClipboardCheck, Globe2, LayoutDashboard, Repeat, ShieldCheck, Users } from "lucide-react";
+import type { AdminDuplicateCandidate } from "@/lib/services/admin-athlete-duplicates";
+import { Activity, ClipboardCheck, Globe2, LayoutDashboard, Repeat, ShieldCheck, Users, Users2 } from "lucide-react";
 
-type Tab = "overview" | "users" | "claims" | "corrections" | "ingestion" | "representation" | "federations";
+type Tab = "overview" | "users" | "claims" | "corrections" | "ingestion" | "representation" | "federations" | "duplicates";
 type ModuleTab = Exclude<Tab, "overview">;
 
 const MODULES: { id: ModuleTab; icon: typeof Users; titleKey: string; descKey: string }[] = [
   { id: "users", icon: Users, titleKey: "admin.users.title", descKey: "admin.users.desc" },
   { id: "claims", icon: ShieldCheck, titleKey: "admin.claims.title", descKey: "admin.claims.desc" },
   { id: "corrections", icon: ClipboardCheck, titleKey: "admin.corrections.title", descKey: "admin.corrections.desc" },
+  { id: "duplicates", icon: Users2, titleKey: "admin.duplicates.title", descKey: "admin.duplicates.desc" },
   { id: "ingestion", icon: Activity, titleKey: "admin.ingestion.title", descKey: "admin.ingestion.desc" },
   { id: "representation", icon: Repeat, titleKey: "admin.representation.title", descKey: "admin.representation.desc" },
   { id: "federations", icon: Globe2, titleKey: "admin.federations.title", descKey: "admin.federations.desc" },
 ];
 
-export function AdminPanel({ users, claims, corrections, logs, representedAthletes, eligibleAgents, transferHistory, federations, promotionHistory }: { users: AdminUser[] | null; claims: AdminClaim[] | null; corrections: AdminCorrection[] | null; logs: ScrapingLog[] | null; representedAthletes: RepresentedAthlete[] | null; eligibleAgents: EligibleAgent[] | null; transferHistory: TransferRecord[] | null; federations: FederationHierarchy | null; promotionHistory: PromotionRecord[] | null }) {
+export function AdminPanel({ users, claims, corrections, logs, representedAthletes, eligibleAgents, transferHistory, federations, promotionHistory, duplicateCandidates }: { users: AdminUser[] | null; claims: AdminClaim[] | null; corrections: AdminCorrection[] | null; logs: ScrapingLog[] | null; representedAthletes: RepresentedAthlete[] | null; eligibleAgents: EligibleAgent[] | null; transferHistory: TransferRecord[] | null; federations: FederationHierarchy | null; promotionHistory: PromotionRecord[] | null; duplicateCandidates: AdminDuplicateCandidate[] | null }) {
   const { t } = useT();
   const [tab, setTab] = useState<Tab>("overview");
   const tabs: { id: Tab; label: string; icon: typeof Users }[] = [
@@ -61,6 +64,7 @@ export function AdminPanel({ users, claims, corrections, logs, representedAthlet
       {tab === "users" && <AdminUsers users={users} promotionHistory={promotionHistory} />}
       {tab === "claims" && <AdminClaims claims={claims} />}
       {tab === "corrections" && <AdminCorrections corrections={corrections} />}
+      {tab === "duplicates" && <AdminDuplicates candidates={duplicateCandidates} />}
       {tab === "ingestion" && <AdminIngestion logs={logs} />}
       {tab === "representation" && <AdminRepresentation athletes={representedAthletes} agents={eligibleAgents} history={transferHistory} />}
       {tab === "federations" && <AdminFederations data={federations} />}

@@ -685,6 +685,25 @@ create table if not exists atuacao_cartoes (
 
 create index if not exists idx_atuacao_cartoes_atuacao on atuacao_cartoes (atuacao_id);
 
+-- Persists athlete duplicate candidates found by scan-athlete-duplicates.ts —
+-- previously only printed to a terminal, never visible to anyone but whoever ran
+-- the script. Admin-only curation, never club/agent-visible (see the migration's
+-- own header comment for the full rationale).
+create table if not exists atleta_duplicate_candidates (
+  id uuid primary key default gen_random_uuid(),
+  bid_a bigint not null references atletas (bid) on delete cascade,
+  bid_b bigint not null references atletas (bid) on delete cascade,
+  tier text not null check (tier in ('forte', 'clube+nome')),
+  status text not null default 'pending' check (status in ('pending', 'merged', 'dismissed')),
+  detected_at timestamptz not null default now(),
+  resolved_at timestamptz,
+  resolved_by uuid references profiles (id) on delete set null,
+  constraint atleta_duplicate_candidates_distinct check (bid_a <> bid_b),
+  unique (bid_a, bid_b)
+);
+
+create index if not exists idx_atleta_dup_candidates_status on atleta_duplicate_candidates (status);
+
 -- ----------------------------------------------------------------------------
 -- favoritos (user's shortlist + rating; drives tactical-board bench ranking)
 -- ----------------------------------------------------------------------------
@@ -1039,6 +1058,7 @@ alter table atleta_fontes enable row level security;
 alter table partidas_sumula enable row level security;
 alter table atuacoes_sumula enable row level security;
 alter table atuacao_cartoes enable row level security;
+alter table atleta_duplicate_candidates enable row level security;
 alter table favoritos enable row level security;
 alter table prancheta_tatica enable row level security;
 alter table prancheta_slots enable row level security;
@@ -1171,6 +1191,9 @@ create policy atuacoes_write_admin on atuacoes_sumula
 create policy atuacao_cartoes_select_approved on atuacao_cartoes
   for select using ((select private.is_approved()) or (select private.is_admin()));
 create policy atuacao_cartoes_write_admin on atuacao_cartoes
+  for all using (private.is_admin()) with check (private.is_admin());
+
+create policy atleta_duplicate_candidates_admin on atleta_duplicate_candidates
   for all using (private.is_admin()) with check (private.is_admin());
 
 -- favoritos: strictly private to an approved owner.

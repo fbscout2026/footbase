@@ -13,6 +13,7 @@ import {
 } from "@/lib/services/admin-representation";
 import { loadFederationHierarchy, type FederationHierarchy } from "@/lib/services/admin-federations";
 import { loadPromotionHistory, type PromotionRecord } from "@/lib/services/admin-promotions";
+import { loadDuplicateCandidates, type AdminDuplicateCandidate } from "@/lib/services/admin-athlete-duplicates";
 
 // Phase 5.1 guard + layout; 5.2–5.6 load users/claims/corrections/ingestion (admin
 // reads all via RLS). Phase 5.7 adds the representation-transfer module.
@@ -34,7 +35,7 @@ export default async function AdminPage() {
   const [
     profilesR, emailsR, claimsR, correctionsR, logsR,
     athletesR, agentsR, transferR, agentNamesR,
-    federationsR, promotionsR,
+    federationsR, promotionsR, duplicatesR,
   ] = await Promise.allSettled([
     loadUsers(client),
     loadUserEmails(createAdminClient()),
@@ -47,6 +48,7 @@ export default async function AdminPage() {
     loadAgentNames(client),
     loadFederationHierarchy(client),
     loadPromotionHistory(client),
+    loadDuplicateCandidates(client),
   ]);
 
   let users: AdminUser[] | null = null;
@@ -94,5 +96,7 @@ export default async function AdminPage() {
         }))
       : null;
 
-  return <AdminPanel users={users} claims={claims} corrections={corrections} logs={logs} representedAthletes={representedAthletes} eligibleAgents={eligibleAgents} transferHistory={transferHistory} federations={federations} promotionHistory={promotionHistory} />;
+  const duplicateCandidates: AdminDuplicateCandidate[] | null = duplicatesR.status === "fulfilled" ? duplicatesR.value : null;
+
+  return <AdminPanel users={users} claims={claims} corrections={corrections} logs={logs} representedAthletes={representedAthletes} eligibleAgents={eligibleAgents} transferHistory={transferHistory} federations={federations} promotionHistory={promotionHistory} duplicateCandidates={duplicateCandidates} />;
 }
