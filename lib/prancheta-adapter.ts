@@ -36,10 +36,11 @@ export interface FavoritesBoardData {
 export async function loadFavoritesBoardData(client: SupabaseClient, favorites: FavoriteRecord[]): Promise<FavoritesBoardData> {
   const ratingByBid = new Map(favorites.map((f) => [f.bid, f.rating]));
   const bids = favorites.map((f) => f.bid);
-  const [athleteList, recentStatsByBid] = await Promise.all([
-    loadAtletasByBids(client, bids),
-    loadRecentStatsByBids(client, bids, RECENT_FORM_WINDOW),
-  ]);
+  // Needs the athlete's current category before it can score "played above
+  // category" correctly, so this can't run in parallel with the athlete load.
+  const athleteList = await loadAtletasByBids(client, bids);
+  const currentCategoryByBid = new Map(athleteList.map((a) => [a.bid, a.currentCategory]));
+  const recentStatsByBid = await loadRecentStatsByBids(client, bids, currentCategoryByBid, RECENT_FORM_WINDOW);
   const athletes = new Map(athleteList.map((a) => [a.bid, a]));
 
   const candidates = athleteList.flatMap((athlete) => {

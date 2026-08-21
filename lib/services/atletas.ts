@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { num, type AtletaFilterState } from "@/lib/atletas-filters";
 
 // FOOTBASE — real Atletas explorer + dossiê, backed by `view_atleta_resumo`
 // (see supabase/schema.sql). Replaces the `lib/mock-data.ts` fixtures the
@@ -115,7 +116,15 @@ function mapRow(r: ViewRow): AtletaRecord {
       totalYellowCards: r.total_yellow_cards,
       totalRedCards: r.total_red_cards,
       totalCleanSheets: r.total_clean_sheets,
-      timesPlayedAboveCategory: r.times_played_above_category,
+      // `times_played_above_category` compares a match's category against the
+      // `player_category` recorded on that SAME appearance — always 0 in practice
+      // (every parser records the player as playing in whatever category the
+      // match itself is, see supabase/schema.sql's column comment). Every real
+      // consumer (Gema filter, comparison tool, prancheta scoring, the dossie's
+      // own stat) needs `games_above_current_category` instead — the one that
+      // actually compares against the athlete's CURRENT category. Session 55: the
+      // "Gema" filter on /atletas silently matched zero athletes because of this.
+      timesPlayedAboveCategory: r.games_above_current_category,
       gamesAboveCurrentCategory: r.games_above_current_category,
       lastMatchDate: r.last_match_date,
     },
@@ -145,7 +154,125 @@ export interface AtletasExplorerPage {
 // 20 rows it needs instead of ever-growing client-side state.
 const PAGE_SIZE = 20;
 
-export async function loadAtletasExplorer(client: SupabaseClient, page = 0): Promise<AtletasExplorerPage> {
+/** "SUB-11".."SUB-20" all share the same "SUB-NN" shape (two digits), so plain
+ * string comparison already sorts them correctly — no need for a numeric rank
+ * column just to push a category range down into the query. */
+function isoDateDaysAgo(days: number): string {
+  const d = new Date();
+  d.setUTCDate(d.getUTCDate() - days);
+  return d.toISOString().slice(0, 10);
+}
+function isoDateDaysFromNow(days: number): string {
+  return isoDateDaysAgo(-days);
+}
+
+/**
+ * Pushes `AtletaFilterState` down onto the CHEAP base `atletas` table query
+ * (Session 55) — every field the filter UI exposes maps onto a real column
+ * there (confirmed against `view_atleta_resumo`'s own definition: every column
+ * it adds beyond `atletas` is either a join to `clubes` for display, or a
+ * `CASE`/`age()` expression computable from a raw `atletas` column instead).
+ * Filtering the base table keeps this on the same "cheap table first, THEN
+ * scope the expensive view join to just the resulting page" path the
+ * pagination fix already established — filtering the view directly would
+ * reintroduce the exact statement-timeout risk that fix exists to avoid.
+ *
+ * `age` and `expiringContract`/contract status translate into `birth_date`/
+ * `contract_end_date` ranges (the view computes them with `age()`/`CASE`
+ * expressions PostgREST can't filter on directly, so the equivalent date
+ * arithmetic is done here instead — same real boundary, just expressed against
+ * the column the CASE expression itself reads from).
+ */
+function applyAtletaFilters(query: any, f: AtletaFilterState): any {
+  let q: any = query;
+
+  if (f.name.trim()) {
+    // PostgREST's `.or()` DSL uses "," as a clause separator — strip it from
+    // the search term so a name that happens to contain one can't break the
+    // filter string (real Portuguese names never legitimately need a comma).
+    const term = f.name.trim().replace(/,/g, "");
+    q = q.or(`name.ilike.%${term}%,apelido.ilike.%${term}%`);
+  }
+  if (f.bid.trim()) {
+    const digits = f.bid.trim().replace(/\D/g, "");
+    if (digits) {
+      // Approximates the old client-side "contains anywhere" as "starts with"
+      // instead — PostgREST can't pattern-match a bigint column directly (no
+      // text cast available through the filter API), but a numeric range does
+      // the same job for the real, overwhelmingly common case of searching a
+      // BID you already know from its first digits.
+      const width = Math.max(6, digits.length);
+      const lo = Number(digits.padEnd(width, "0"));
+      const hi = lo + 10 ** (width - digits.length);
+      q = q.gte("bid", lo).lt("bid", hi);
+    }
+  }
+
+  if (f.categoryMode === "exact") {
+    if (f.categoryExact) q = q.eq("current_category", f.categoryExact);
+  } else {
+    if (f.categoryFrom) q = q.gte("current_category", f.categoryFrom);
+    if (f.categoryTo) q = q.lte("current_category", f.categoryTo);
+  }
+
+  const ageToDates = (age: number): { min: string; max: string } => ({
+    min: isoDateDaysAgo((age + 1) * 365.25),
+    max: isoDateDaysAgo(age * 365.25),
+  });
+  if (f.ageMode === "exact") {
+    const e = num(f.ageExact);
+    if (e !== null) {
+      const { min, max } = ageToDates(e);
+      q = q.gt("birth_date", min).lte("birth_date", max);
+    }
+  } else {
+    const from = num(f.ageFrom);
+    const to = num(f.ageTo);
+    if (to !== null) q = q.gt("birth_date", ageToDates(to).min);
+    if (from !== null) q = q.lte("birth_date", ageToDates(from).max);
+  }
+
+  if (f.heightMode === "exact") {
+    const e = num(f.heightExact);
+    if (e !== null) q = q.eq("height_cm", e);
+  } else {
+    const from = num(f.heightFrom);
+    const to = num(f.heightTo);
+    if (from !== null) q = q.gte("height_cm", from);
+    if (to !== null) q = q.lte("height_cm", to);
+  }
+
+  if (f.nationality) q = q.eq("nacionalidade", f.nationality);
+  if (f.foot) q = q.eq("dominant_foot", f.foot);
+  if (f.position) q = q.eq("main_position", f.position);
+  if (f.secondaryPosition) q = q.eq("posicao_secundaria", f.secondaryPosition);
+  const wFrom = num(f.weightFrom);
+  const wTo = num(f.weightTo);
+  if (wFrom !== null) q = q.gte("weight_kg", wFrom);
+  if (wTo !== null) q = q.lte("weight_kg", wTo);
+
+  const mMatches = num(f.minMatches);
+  const mMinutes = num(f.minMinutes);
+  const mGoals = num(f.minGoals);
+  const mAssists = num(f.minAssists);
+  if (mMatches !== null) q = q.gte("total_matches", mMatches);
+  if (mMinutes !== null) q = q.gte("total_minutes", mMinutes);
+  if (mGoals !== null) q = q.gte("total_goals", mGoals);
+  if (mAssists !== null) q = q.gte("total_assists", mAssists);
+  if (f.gema) q = q.gt("games_above_current_category", 0);
+  if (f.hasVideo) q = q.not("youtube_video_url", "is", null);
+
+  if (f.passport === "yes") q = q.eq("tem_passaporte", true);
+  if (f.passport === "no") q = q.eq("tem_passaporte", false);
+  if (f.hasAgent === "yes") q = q.not("agent_id", "is", null);
+  if (f.hasAgent === "no") q = q.is("agent_id", null);
+  if (f.international) q = q.eq("experiencia_internacional", true);
+  if (f.expiringContract) q = q.gte("contract_end_date", isoDateDaysAgo(0)).lte("contract_end_date", isoDateDaysFromNow(180));
+
+  return q;
+}
+
+export async function loadAtletasExplorer(client: SupabaseClient, page = 0, filters?: AtletaFilterState): Promise<AtletasExplorerPage> {
   const from = page * PAGE_SIZE;
   const to = from + PAGE_SIZE - 1;
 
@@ -158,18 +285,30 @@ export async function loadAtletasExplorer(client: SupabaseClient, page = 0): Pro
   // by paginating the cheap base table first (plain `atletas`, no join) to get
   // just this page's bids, THEN asking the view for full stats scoped to only
   // those bids via `.in(...)` — bounds the expensive join to page-size rows.
-  const idPage = await client.from("atletas").select("bid").order("name").range(from, to);
+  //
+  // Session 55: `filters` is applied to THIS cheap base-table query (via
+  // `applyAtletaFilters`) — the filter/search UI used to only ever narrow the
+  // current 20-row page client-side, so a rare condition like "Gema" almost
+  // always came back empty even though real matches existed elsewhere in the
+  // other 465 pages. Filtering here instead searches the real ~9,300-athlete
+  // table and paginates the FILTERED result set.
+  let idQuery = client.from("atletas").select("bid").order("name").range(from, to);
+  let countQuery = client.from("atletas").select("bid", { count: "exact", head: true });
+  if (filters) {
+    idQuery = applyAtletaFilters(idQuery, filters);
+    countQuery = applyAtletaFilters(countQuery, filters);
+  }
+
+  const [idPage, countRes] = await Promise.all([idQuery, countQuery]);
   if (idPage.error) throw idPage.error;
+  if (countRes.error) throw countRes.error;
   const bids = (idPage.data ?? []).map((r) => Number(r.bid));
 
-  const [pageRes, countRes] = await Promise.all([
+  const pageRes =
     bids.length > 0
-      ? client.from("view_atleta_resumo").select(VIEW_COLUMNS).in("bid", bids)
-      : Promise.resolve({ data: [] as ViewRow[], error: null }),
-    client.from("atletas").select("bid", { count: "exact", head: true }),
-  ]);
+      ? await client.from("view_atleta_resumo").select(VIEW_COLUMNS).in("bid", bids)
+      : { data: [] as ViewRow[], error: null };
   if (pageRes.error) throw pageRes.error;
-  if (countRes.error) throw countRes.error;
 
   // `.in(...)` doesn't preserve the `order("name")` from the id page — re-sort
   // the stats rows back into the same order the bids were fetched in.
@@ -306,14 +445,27 @@ const EMPTY_RECENT_STATS: RecentStats = {
  * favorited athlete's own appearance count is always small, so fetching all
  * of them and taking the most recent `limit` client-side is simple and safe,
  * same approach as `loadEvolucaoReal`.
+ *
+ * `currentCategoryByBid` is required to compute `timesPlayedAboveCategory`
+ * correctly (Session 55 fix): comparing a match's category against the
+ * `player_category` recorded on that SAME appearance is always false (every
+ * parser records the player as playing in whatever category the match itself
+ * is — same dead-column bug documented on `atletas.times_played_above_category`
+ * in supabase/schema.sql). The real comparison is against the athlete's
+ * CURRENT category, same semantics as `games_above_current_category`.
  */
-export async function loadRecentStatsByBids(client: SupabaseClient, bids: number[], limit = 5): Promise<Map<number, RecentStats>> {
+export async function loadRecentStatsByBids(
+  client: SupabaseClient,
+  bids: number[],
+  currentCategoryByBid: Map<number, string | null>,
+  limit = 5,
+): Promise<Map<number, RecentStats>> {
   const result = new Map<number, RecentStats>();
   if (bids.length === 0) return result;
 
   const { data, error } = await client
     .from("atuacoes_sumula")
-    .select("bid_atleta,minutes_played,goals,assists,yellow_cards,red_cards,clean_sheet,player_category,partidas_sumula!inner(match_date,match_category)")
+    .select("bid_atleta,minutes_played,goals,assists,yellow_cards,red_cards,clean_sheet,partidas_sumula!inner(match_date,match_category)")
     .in("bid_atleta", bids);
   if (error) throw error;
 
@@ -330,6 +482,7 @@ export async function loadRecentStatsByBids(client: SupabaseClient, bids: number
       .sort((a, b) => String(b.partidas_sumula?.match_date ?? "").localeCompare(String(a.partidas_sumula?.match_date ?? "")))
       .slice(0, limit);
 
+    const currentRank = CATEGORIA_RANK[currentCategoryByBid.get(bid) ?? ""];
     const stats: RecentStats = { ...EMPTY_RECENT_STATS, totalMatches: rows.length };
     for (const r of rows) {
       stats.totalMinutes += r.minutes_played ?? 0;
@@ -339,8 +492,7 @@ export async function loadRecentStatsByBids(client: SupabaseClient, bids: number
       stats.totalRedCards += r.red_cards ?? 0;
       if (r.clean_sheet) stats.totalCleanSheets += 1;
       const matchRank = CATEGORIA_RANK[r.partidas_sumula?.match_category ?? ""];
-      const playerRank = CATEGORIA_RANK[r.player_category ?? ""];
-      if (matchRank != null && playerRank != null && matchRank > playerRank) stats.timesPlayedAboveCategory += 1;
+      if (matchRank != null && currentRank != null && matchRank > currentRank) stats.timesPlayedAboveCategory += 1;
     }
     result.set(bid, stats);
   }
@@ -385,30 +537,113 @@ export async function loadCategoriaAcimaMatches(client: SupabaseClient, bid: num
     .sort((a, b) => b.matchDate.localeCompare(a.matchDate));
 }
 
+export interface CardDetail {
+  type: "yellow" | "red";
+  reason: string | null;
+}
+
 export interface CardEvent {
   matchDate: string;
   matchCategory: string;
   yellowCards: number;
   redCards: number;
+  cards: CardDetail[];
 }
 
 /** Every real match where this athlete picked up at least one card —
- * powers the dossiê's scrollable disciplinary-history card (Session 55). */
+ * powers the dossiê's scrollable disciplinary-history card (Session 55).
+ * `cards` carries the real "Motivo:" text straight from the súmula
+ * (`atuacao_cartoes`, Session 55) when the parser captured one — a card can
+ * still show up with `reason: null` for matches ingested before that parser
+ * change (historically backfilled where the PDF was still fetchable, but not
+ * every source/match could be recovered). */
 export async function loadCardEvents(client: SupabaseClient, bid: number): Promise<CardEvent[]> {
   const { data, error } = await client
     .from("atuacoes_sumula")
-    .select("yellow_cards,red_cards,partidas_sumula!inner(match_date,match_category)")
+    .select("yellow_cards,red_cards,partidas_sumula!inner(match_date,match_category),atuacao_cartoes(card_type,reason)")
     .eq("bid_atleta", bid)
     .or("yellow_cards.gt.0,red_cards.gt.0");
   if (error) throw error;
 
   return (data as any[] ?? [])
-    .map((r) => ({
-      matchDate: r.partidas_sumula.match_date,
-      matchCategory: r.partidas_sumula.match_category,
-      yellowCards: r.yellow_cards ?? 0,
-      redCards: r.red_cards ?? 0,
-    }))
+    .map((r) => {
+      const reasonsByType = new Map<string, (string | null)[]>();
+      for (const c of (r.atuacao_cartoes ?? []) as { card_type: "yellow" | "red"; reason: string | null }[]) {
+        (reasonsByType.get(c.card_type) ?? reasonsByType.set(c.card_type, []).get(c.card_type)!).push(c.reason);
+      }
+      const yellowCards = r.yellow_cards ?? 0;
+      const redCards = r.red_cards ?? 0;
+      const cards: CardDetail[] = [
+        ...Array.from({ length: yellowCards }, (_, i) => ({ type: "yellow" as const, reason: reasonsByType.get("yellow")?.[i] ?? null })),
+        ...Array.from({ length: redCards }, (_, i) => ({ type: "red" as const, reason: reasonsByType.get("red")?.[i] ?? null })),
+      ];
+      return {
+        matchDate: r.partidas_sumula.match_date,
+        matchCategory: r.partidas_sumula.match_category,
+        yellowCards,
+        redCards,
+        cards,
+      };
+    })
+    .sort((a, b) => b.matchDate.localeCompare(a.matchDate));
+}
+
+export interface MatchHistoryEntry {
+  matchDate: string;
+  matchCategory: string;
+  opponentName: string | null;
+}
+
+/**
+ * Every real match this athlete appeared in — category, opponent club, and date
+ * (Session 55). Broader than `loadCategoriaAcimaMatches` (which only covers
+ * matches above the CURRENT category): this covers every category the athlete
+ * has ever played.
+ *
+ * The opponent is derived from `atuacoes_sumula.club_id` (which club THIS
+ * appearance was for, Session 55) against `partidas_sumula.home_club_id`/
+ * `away_club_id` — whichever of the two isn't the athlete's own club. Matches
+ * ingested before that column existed (and any not yet backfilled/resolved)
+ * have `club_id: null`, so `opponentName` is `null` for those rather than a
+ * guessed value.
+ */
+export async function loadMatchHistory(client: SupabaseClient, bid: number): Promise<MatchHistoryEntry[]> {
+  const { data, error } = await client
+    .from("atuacoes_sumula")
+    .select("club_id,partidas_sumula!inner(match_date,match_category,home_club_id,away_club_id)")
+    .eq("bid_atleta", bid);
+  if (error) throw error;
+
+  const rows = (data as any[]) ?? [];
+  const opponentIdFor = (r: any): string | null => {
+    const p = r.partidas_sumula;
+    if (!r.club_id) return null;
+    if (r.club_id === p.home_club_id) return p.away_club_id;
+    if (r.club_id === p.away_club_id) return p.home_club_id;
+    return null;
+  };
+
+  const opponentIds = new Set<string>();
+  for (const r of rows) {
+    const id = opponentIdFor(r);
+    if (id) opponentIds.add(id);
+  }
+
+  let nameById = new Map<string, string>();
+  if (opponentIds.size > 0) {
+    const { data: clubs } = await client.from("clubes").select("id,name").in("id", [...opponentIds]);
+    nameById = new Map((clubs ?? []).map((c) => [c.id as string, c.name as string]));
+  }
+
+  return rows
+    .map((r) => {
+      const opponentId = opponentIdFor(r);
+      return {
+        matchDate: r.partidas_sumula.match_date,
+        matchCategory: r.partidas_sumula.match_category,
+        opponentName: opponentId ? (nameById.get(opponentId) ?? null) : null,
+      };
+    })
     .sort((a, b) => b.matchDate.localeCompare(a.matchDate));
 }
 

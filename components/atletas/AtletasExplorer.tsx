@@ -11,25 +11,29 @@ import { Pagination } from "@/components/ui/Pagination";
 import { Button } from "@/components/ui/Button";
 import { createClient } from "@/lib/supabase/client";
 import { loadAtletasExplorer } from "@/lib/services/atletas";
-import { applyFilters, emptyFilters, type AtletaFilterState } from "@/lib/atletas-filters";
+import { emptyFilters, type AtletaFilterState } from "@/lib/atletas-filters";
 
 const PAGE_SIZE = 20;
 
-export function AtletasExplorer({ initialAtletas, totalCount }: { initialAtletas: AtletaRecord[]; totalCount: number }) {
+export function AtletasExplorer({ initialAtletas, totalCount: initialTotalCount }: { initialAtletas: AtletaRecord[]; totalCount: number }) {
   const { t } = useT();
   const [filters, setFilters] = useState<AtletaFilterState>(emptyFilters);
   const [atletas, setAtletas] = useState(initialAtletas);
+  const [totalCount, setTotalCount] = useState(initialTotalCount);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
-  // The server already gave us page 1 (SSR) — skip re-fetching it on mount.
+  // The server already gave us page 1, unfiltered (SSR) — skip re-fetching it
+  // on mount, only once, so the first paint doesn't pay for a request it
+  // already has the answer to.
   const isFirstRender = useRef(true);
 
-  // Real server-side pagination: exactly one page (20 athletes) is ever held
-  // in client state, fetched fresh per page via `.range()` (see `atletas.ts`)
-  // instead of accumulating an ever-growing "carregar mais" list. The quick
-  // search/filters below still only run over the CURRENT page's 20 rows, not
-  // the whole database — a real server-side search is the proper follow-up
-  // once that's worth the extra complexity; this keeps the page itself light.
+  // Real server-side search (Session 55): filters are pushed down into the
+  // Supabase query (see `loadAtletasExplorer`/`applyAtletaFilters`) instead of
+  // only narrowing whichever 20 rows happen to be on the CURRENT page — a
+  // filter like "Gema" used to come back empty almost every time even when
+  // real matches existed, just scattered across the other 465 pages. Changing
+  // a filter always jumps back to page 1: a stale page number from a
+  // different, larger result set wouldn't mean anything for the new one.
   useEffect(() => {
     if (isFirstRender.current) {
       isFirstRender.current = false;
@@ -38,9 +42,12 @@ export function AtletasExplorer({ initialAtletas, totalCount }: { initialAtletas
     let cancelled = false;
     setLoading(true);
     const client = createClient();
-    loadAtletasExplorer(client, page - 1)
-      .then(({ atletas: next }) => {
-        if (!cancelled) setAtletas(next);
+    loadAtletasExplorer(client, page - 1, filters)
+      .then(({ atletas: next, totalCount: nextTotal }) => {
+        if (!cancelled) {
+          setAtletas(next);
+          setTotalCount(nextTotal);
+        }
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -48,17 +55,21 @@ export function AtletasExplorer({ initialAtletas, totalCount }: { initialAtletas
     return () => {
       cancelled = true;
     };
-  }, [page]);
+  }, [page, filters]);
 
   const goToPage = useCallback((next: number) => {
     setPage(Math.max(1, next));
+  }, []);
+
+  const handleFiltersChange = useCallback((next: AtletaFilterState) => {
+    setFilters(next);
+    setPage(1);
   }, []);
 
   const nationalities = useMemo(
     () => Array.from(new Set(atletas.map((a) => a.nacionalidade))).sort(),
     [atletas],
   );
-  const results = useMemo(() => applyFilters(atletas, filters), [atletas, filters]);
   const pageCount = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
 
   return (
@@ -79,11 +90,11 @@ export function AtletasExplorer({ initialAtletas, totalCount }: { initialAtletas
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-4 xl:grid-cols-5">
         <aside className="lg:col-span-1">
-          <AtletaFilters filters={filters} onChange={setFilters} nationalities={nationalities} />
+          <AtletaFilters filters={filters} onChange={handleFiltersChange} nationalities={nationalities} />
         </aside>
         <div className="space-y-3 lg:col-span-3 xl:col-span-4">
           <div className={loading ? "opacity-50 transition-opacity" : "transition-opacity"}>
-            <AtletasTable atletas={results} />
+            <AtletasTable atletas={atletas} />
           </div>
           <Pagination page={page} pageCount={pageCount} onChange={goToPage} />
         </div>

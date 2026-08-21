@@ -15,7 +15,7 @@ import { ClubHistory } from "@/components/atletas/dossie/ClubHistory";
 import { AgentContact } from "@/components/atletas/dossie/AgentContact";
 import { formatDate, formatMonthYear } from "@/lib/format";
 import type {
-  AtletaRecord, ConquistaRecord, AgenteContactRecord, EvolucaoPoint, CategoriaAcimaMatch, CardEvent,
+  AtletaRecord, ConquistaRecord, AgenteContactRecord, EvolucaoPoint, CategoriaAcimaMatch, CardEvent, MatchHistoryEntry,
 } from "@/lib/services/atletas";
 import { FavoriteButton } from "@/components/favorites/FavoriteButton";
 import { AthleteClaimPanel } from "@/components/atletas/dossie/AthleteClaimPanel";
@@ -25,10 +25,10 @@ const CONTRACT_TONE = {
 } as const;
 
 export function AtletaDossie({
-  atleta: a, conquistas, agent, evolucao, categoriaAcimaMatches, cardEvents,
+  atleta: a, conquistas, agent, evolucao, categoriaAcimaMatches, cardEvents, matchHistory,
 }: {
   atleta: AtletaRecord; conquistas: ConquistaRecord[]; agent: AgenteContactRecord | null; evolucao: EvolucaoPoint[];
-  categoriaAcimaMatches: CategoriaAcimaMatch[]; cardEvents: CardEvent[];
+  categoriaAcimaMatches: CategoriaAcimaMatch[]; cardEvents: CardEvent[]; matchHistory: MatchHistoryEntry[];
 }) {
   const { t } = useT();
 
@@ -213,22 +213,41 @@ export function AtletaDossie({
             ) : (
               <ul className="scroll-brand max-h-72 space-y-2 overflow-y-auto pr-1">
                 {cardEvents.map((c, i) => (
-                  <li key={i} className="flex items-center justify-between gap-3 border border-border bg-background px-3 py-2 text-sm">
+                  <li key={i} className="border border-border bg-background px-3 py-2 text-sm">
                     <span className="flex items-center gap-2 min-w-0">
                       <Badge tone="neutral">{c.matchCategory}</Badge>
                       <span className="truncate text-muted">{formatDate(c.matchDate)}</span>
                     </span>
-                    <span className="flex shrink-0 items-center gap-2">
-                      {c.yellowCards > 0 && (
-                        <span className="flex items-center gap-1 text-xs font-semibold text-warning">
-                          <Square size={11} className="fill-warning" /> {c.yellowCards}
-                        </span>
-                      )}
-                      {c.redCards > 0 && (
-                        <span className="flex items-center gap-1 text-xs font-semibold text-danger">
-                          <Square size={11} className="fill-danger" /> {c.redCards}
-                        </span>
-                      )}
+                    <ul className="mt-2 space-y-1.5">
+                      {c.cards.map((card, j) => (
+                        <li key={j} className="flex items-start gap-2 text-xs">
+                          <Square
+                            size={10}
+                            className={cn("mt-0.5 shrink-0", card.type === "yellow" ? "fill-warning text-warning" : "fill-danger text-danger")}
+                          />
+                          <span className="text-muted">{card.reason ?? t("dossie.cards.noReason")}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Panel>
+
+          <Panel title={t("dossie.matchHistory.title")}>
+            {matchHistory.length === 0 ? (
+              <p className="text-sm text-muted">{t("dossie.matchHistory.empty")}</p>
+            ) : (
+              <ul className="scroll-brand max-h-72 space-y-2 overflow-y-auto pr-1">
+                {matchHistory.map((m, i) => (
+                  <li key={i} className="flex items-center justify-between gap-3 border border-border bg-background px-3 py-2 text-sm">
+                    <span className="flex items-center gap-2 min-w-0">
+                      <Badge tone="neutral">{m.matchCategory}</Badge>
+                      <span className="truncate text-muted">{formatDate(m.matchDate)}</span>
+                    </span>
+                    <span className="shrink-0 truncate text-xs text-muted">
+                      {m.opponentName ?? t("dossie.matchHistory.unknownOpponent")}
                     </span>
                   </li>
                 ))}

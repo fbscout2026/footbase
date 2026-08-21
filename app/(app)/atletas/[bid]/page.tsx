@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { AtletaDossie } from "@/components/atletas/dossie/AtletaDossie";
 import { AtletaDossieLoadError } from "@/components/atletas/AtletasExplorer";
 import { createClient } from "@/lib/supabase/server";
-import { loadAtletaDossie, loadConquistas, loadAgenteContact, loadEvolucaoReal, loadCategoriaAcimaMatches, loadCardEvents } from "@/lib/services/atletas";
+import { loadAtletaDossie, loadConquistas, loadAgenteContact, loadEvolucaoReal, loadCategoriaAcimaMatches, loadCardEvents, loadMatchHistory } from "@/lib/services/atletas";
 
 export default async function DossiePage({ params }: { params: Promise<{ bid: string }> }) {
   const { bid } = await params;
@@ -18,12 +18,13 @@ export default async function DossiePage({ params }: { params: Promise<{ bid: st
   }
   if (!atleta) notFound();
 
-  const [conquistas, evolucao, agent, categoriaAcimaMatches, cardEvents] = await Promise.all([
+  const [conquistas, evolucao, agent, categoriaAcimaMatches, cardEvents, matchHistory] = await Promise.all([
     loadConquistas(supabase, bidNum),
     loadEvolucaoReal(supabase, bidNum),
     atleta.agentId ? loadAgenteContact(supabase, atleta.agentId) : Promise.resolve(null),
     loadCategoriaAcimaMatches(supabase, bidNum, atleta.currentCategory),
     loadCardEvents(supabase, bidNum),
+    loadMatchHistory(supabase, bidNum),
   ]);
   return (
     <AtletaDossie
@@ -33,6 +34,7 @@ export default async function DossiePage({ params }: { params: Promise<{ bid: st
       evolucao={evolucao}
       categoriaAcimaMatches={categoriaAcimaMatches}
       cardEvents={cardEvents}
+      matchHistory={matchHistory}
     />
   );
 }
