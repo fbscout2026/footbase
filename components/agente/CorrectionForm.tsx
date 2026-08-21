@@ -9,6 +9,7 @@ import { CORRECTION_FIELDS, validateCorrection, type CorrectionField } from "@/l
 import { createClient } from "@/lib/supabase/client";
 import { createCorrectionRequest, type AgentAthleteRecord, type CorrectionRequestRecord } from "@/lib/services/agent-panel";
 import { useT } from "@/lib/i18n/I18nProvider";
+import { formatAthleteCode } from "@/lib/format";
 
 export function CorrectionForm({ userId, athletes, corrections, readOnly, onCreated }: { userId: string; athletes: AgentAthleteRecord[]; corrections: CorrectionRequestRecord[]; readOnly: boolean; onCreated: (record: CorrectionRequestRecord) => void }) {
   const { t } = useT(); const client = useMemo(() => createClient(), []);
@@ -43,6 +44,6 @@ export function CorrectionForm({ userId, athletes, corrections, readOnly, onCrea
       <Input id="correction-proof" name="proof" type="url" label={t("agent.correction.proof")} disabled={saving} />
       <div className="flex items-center gap-3"><Button type="submit" disabled={saving}>{t("agent.correction.send")}</Button>{error && <span className="text-sm text-danger">{t("agent.saveError")}</span>}</div>
     </form>}
-    <div><h3 className="text-sm font-extrabold uppercase">{t("agent.correction.history")}</h3>{corrections.length === 0 ? <p className="mt-3 text-sm text-muted">{t("agent.correction.empty")}</p> : <ul className="mt-3 space-y-3">{corrections.map((item) => <li key={item.id} className="border border-border bg-background p-3 text-sm"><div className="flex items-start justify-between gap-2"><div><p className="font-bold">{t(`agent.correction.fields.${item.field}`)} · BID {item.bid}</p><p className="mt-1 text-xs text-muted">{item.suggestedValue}</p></div><Badge tone={item.status === "approved" ? "brand" : item.status === "rejected" ? "danger" : "warning"}>{t(`agent.correction.status.${item.status}`)}</Badge></div></li>)}</ul>}</div>
+    <div><h3 className="text-sm font-extrabold uppercase">{t("agent.correction.history")}</h3>{corrections.length === 0 ? <p className="mt-3 text-sm text-muted">{t("agent.correction.empty")}</p> : <ul className="mt-3 space-y-3">{corrections.map((item) => <li key={item.id} className="border border-border bg-background p-3 text-sm"><div className="flex items-start justify-between gap-2"><div><p className="font-bold">{t(`agent.correction.fields.${item.field}`)} · {formatAthleteCode(item.bid)}</p><p className="mt-1 text-xs text-muted">{item.suggestedValue}</p></div><Badge tone={item.status === "approved" ? "brand" : item.status === "rejected" ? "danger" : "warning"}>{t(`agent.correction.status.${item.status}`)}</Badge></div></li>)}</ul>}</div>
   </div>;
 }

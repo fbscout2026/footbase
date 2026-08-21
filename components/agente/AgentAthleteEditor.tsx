@@ -8,6 +8,7 @@ import { Select } from "@/components/ui/Select";
 import { useT } from "@/lib/i18n/I18nProvider";
 import { createClient } from "@/lib/supabase/client";
 import { normalizeOptionalText, normalizeYouTubeUrl, validateAthleteEdit, type DominantFoot, type PositionCode } from "@/lib/agent-panel-rules";
+import { formatAthleteCode } from "@/lib/format";
 import { updateClaimedAthlete, type AgentAthleteRecord } from "@/lib/services/agent-panel";
 
 const POSITIONS: PositionCode[] = ["GK", "CB", "LB", "RB", "DM", "CM", "AM", "LW", "RW", "ST"];
@@ -39,7 +40,7 @@ export function AgentAthleteEditor({ athlete, onClose, onSaved }: { athlete: Age
 
   return <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/75 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
     <div role="dialog" aria-modal="true" aria-labelledby="athlete-editor-title" className="matchday-surface max-h-[92vh] w-full max-w-2xl overflow-y-auto p-5 sm:p-6">
-      <div className="flex items-start justify-between gap-4"><div><h2 id="athlete-editor-title" className="matchday-heading text-2xl">{t("agent.editAthlete")}</h2><p className="text-sm text-muted">{athlete.name} · BID {athlete.bid}</p></div><button type="button" onClick={onClose} aria-label={t("common.close")} className="flex h-11 w-11 items-center justify-center border border-border hover:border-brand"><X size={18} /></button></div>
+      <div className="flex items-start justify-between gap-4"><div><h2 id="athlete-editor-title" className="matchday-heading text-2xl">{t("agent.editAthlete")}</h2><p className="text-sm text-muted">{athlete.name} · {formatAthleteCode(athlete.bid)}</p></div><button type="button" onClick={onClose} aria-label={t("common.close")} className="flex h-11 w-11 items-center justify-center border border-border hover:border-brand"><X size={18} /></button></div>
       <div className="mt-5 border border-border bg-background p-4 text-sm"><p className="font-bold uppercase">{t("agent.locked.title")}</p><p className="mt-1 text-muted">{t("agent.locked.help")}</p><dl className="mt-3 grid grid-cols-2 gap-2 text-xs"><div><dt className="text-muted">{t("agent.profile.name")}</dt><dd>{athlete.name}</dd></div><div><dt className="text-muted">{t("agent.athletes.position")}</dt><dd>{athlete.mainPosition ?? "—"}</dd></div><div><dt className="text-muted">{t("agent.athletes.category")}</dt><dd>{athlete.currentCategory ?? "—"}</dd></div><div><dt className="text-muted">{t("agent.birthDate")}</dt><dd>{athlete.birthDate}</dd></div></dl></div>
       <form className="mt-5 grid gap-4 sm:grid-cols-2" onSubmit={(event) => { event.preventDefault(); void submit(event.currentTarget); }}>
         <Input id="athlete-nickname" name="apelido" label={t("agent.field.nickname")} defaultValue={athlete.apelido ?? ""} disabled={saving} />

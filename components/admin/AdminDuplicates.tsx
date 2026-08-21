@@ -6,6 +6,7 @@ import { useT } from "@/lib/i18n/I18nProvider";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import type { AdminDuplicateCandidate, DuplicateCandidateAthlete } from "@/lib/services/admin-athlete-duplicates";
+import { formatAthleteCode } from "@/lib/format";
 import { Users2 } from "lucide-react";
 
 // Session 55: candidates come from scan-athlete-duplicates.ts --write, already
@@ -98,7 +99,7 @@ function AthleteChoice({ athlete: a, busy, onPick }: { athlete: DuplicateCandida
   return <div className="border border-border bg-background p-4">
     <p className="font-semibold">{a.name}</p>
     <p className="mt-1 text-xs text-muted">
-      BID {a.bid} · {a.currentCategory ?? "—"} · {a.currentClubName ?? "—"} · {a.totalMatches} {t("admin.duplicates.matches")}
+      {formatAthleteCode(a.bid)} · {a.currentCategory ?? "—"} · {a.currentClubName ?? "—"} · {a.totalMatches} {t("admin.duplicates.matches")}
     </p>
     {a.birthDate && <p className="text-xs text-muted">{t("admin.duplicates.birth")}: {a.birthDate}</p>}
     <Button type="button" disabled={busy} onClick={onPick} className="mt-3 w-full">

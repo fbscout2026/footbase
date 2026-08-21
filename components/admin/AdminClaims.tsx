@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { createClient } from "@/lib/supabase/client";
 import { setClaimStatus, type AdminClaim, type ClaimStatus } from "@/lib/services/admin-claims";
+import { formatAthleteCode } from "@/lib/format";
 import { ShieldCheck } from "lucide-react";
 
 type Filter = ClaimStatus | "all";
@@ -58,7 +59,7 @@ export function AdminClaims({ claims }: { claims: AdminClaim[] | null }) {
 function ClaimCard({ claim, busy, onDecide }: { claim: AdminClaim; busy: boolean; onDecide: (id: string, status: Exclude<ClaimStatus, "pending">) => void }) {
   const { t } = useT();
   const target = claim.tipo === "atleta"
-    ? `${claim.athleteName ?? "—"}${claim.bidAtleta ? ` · BID ${claim.bidAtleta}` : ""}${claim.athleteCategory ? ` · ${claim.athleteCategory}` : ""}`
+    ? `${claim.athleteName ?? "—"}${claim.bidAtleta ? ` · ${formatAthleteCode(claim.bidAtleta)}` : ""}${claim.athleteCategory ? ` · ${claim.athleteCategory}` : ""}`
     : `${claim.clubName ?? "—"}${claim.clubState ? ` · ${claim.clubState}` : ""}`;
 
   return <section className="matchday-surface p-5">

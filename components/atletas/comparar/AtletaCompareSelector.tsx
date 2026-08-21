@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { LockKeyhole, X, Search } from "lucide-react";
 import { useT } from "@/lib/i18n/I18nProvider";
 import { createClient } from "@/lib/supabase/client";
+import { formatAthleteCode } from "@/lib/format";
 
 interface SlotResult {
   bid: number;
@@ -77,7 +78,7 @@ export function AtletaCompareSelector({
                 </div>
               ) : currentBid !== undefined ? (
                 <div className="flex min-h-9 items-center rounded-lg border border-border bg-surface px-2.5 text-sm font-medium">
-                  {selectedNames[currentBid] ?? `BID ${currentBid}`}
+                  {selectedNames[currentBid] ?? formatAthleteCode(currentBid)}
                 </div>
               ) : (
                 <SlotSearch

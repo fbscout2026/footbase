@@ -7,6 +7,7 @@ import { useT } from "@/lib/i18n/I18nProvider";
 import type { TranslationKey } from "@/lib/i18n/dictionaries";
 import { cn } from "@/lib/cn";
 import { createClient } from "@/lib/supabase/client";
+import { formatAthleteCode } from "@/lib/format";
 
 type Entity = "atletas" | "clubes" | "torneios";
 const ENTITIES: Entity[] = ["atletas", "clubes", "torneios"];
@@ -51,7 +52,7 @@ export function UniversalSearch() {
           (data ?? []).map((a) => ({
             href: `/atletas/${a.bid}`,
             primary: a.name,
-            secondary: [a.main_position, a.current_category, `BID ${a.bid}`].filter(Boolean).join(" · "),
+            secondary: [a.main_position, a.current_category, formatAthleteCode(a.bid)].filter(Boolean).join(" · "),
           })),
         );
       }

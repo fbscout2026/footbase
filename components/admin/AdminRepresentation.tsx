@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/Button";
 import { Select } from "@/components/ui/Select";
 import { createClient } from "@/lib/supabase/client";
 import { transferRepresentation, type RepresentedAthlete, type EligibleAgent, type TransferRecord } from "@/lib/services/admin-representation";
+import { formatAthleteCode } from "@/lib/format";
 import { Repeat, UserCog } from "lucide-react";
 
 export function AdminRepresentation({ athletes, agents, history }: { athletes: RepresentedAthlete[] | null; agents: EligibleAgent[] | null; history: TransferRecord[] | null }) {
@@ -57,7 +58,7 @@ export function AdminRepresentation({ athletes, agents, history }: { athletes: R
           <span className="text-sm font-medium text-muted">{t("admin.representation.athlete")}</span>
           <Select ariaLabel={t("admin.representation.athlete")} value={bid} onChange={(v) => { setBid(v); setNewAgentId(""); }}
             placeholder={t("admin.representation.athletePlaceholder")}
-            options={athletes.map((a) => ({ value: String(a.bid), label: `${a.name} · BID ${a.bid}${a.category ? ` · ${a.category}` : ""}`, hint: a.agentName ?? undefined }))} />
+            options={athletes.map((a) => ({ value: String(a.bid), label: `${a.name} · ${formatAthleteCode(a.bid)}${a.category ? ` · ${a.category}` : ""}`, hint: a.agentName ?? undefined }))} />
         </label>
 
         {selectedAthlete && <p className="text-sm text-muted sm:col-span-2">{t("admin.representation.currentAgent")}: <strong className="text-foreground">{selectedAthlete.agentName ?? "—"}</strong></p>}
@@ -94,7 +95,7 @@ export function AdminRepresentation({ athletes, agents, history }: { athletes: R
         ? <p className="mt-3 text-sm text-muted">{t("admin.representation.historyEmpty")}</p>
         : <div className="mt-3 space-y-3">{history.map((r) => <div key={r.id} className="border border-border p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="font-semibold">{r.athleteName ?? `BID ${r.bidAtleta}`}</p>
+              <p className="font-semibold">{r.athleteName ?? formatAthleteCode(r.bidAtleta)}</p>
               <span className="text-xs text-muted">{new Date(r.createdAt).toLocaleString()}</span>
             </div>
             <p className="mt-1 text-sm text-muted">{r.agenteAnteriorName ?? t("admin.representation.noPreviousAgent")} → <strong className="text-foreground">{r.agenteNovoName ?? "—"}</strong></p>

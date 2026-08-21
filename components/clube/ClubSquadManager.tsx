@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useT } from "@/lib/i18n/I18nProvider";
 import type { ClubPanelData } from "@/lib/services/club-panel";
+import { formatAthleteCode } from "@/lib/format";
 import { Users } from "lucide-react";
 
 // Read-only official squad. Athlete entries/exits come from súmula ingestion and
@@ -19,14 +20,14 @@ export function ClubSquadManager({ data }: { data: ClubPanelData }) {
       : <div className="overflow-x-auto"><table className="w-full min-w-[680px] text-sm">
           <thead><tr className="border-b border-border bg-background text-left text-xs uppercase tracking-wide text-muted">
             <th className="px-4 py-3">{t("clubs.athlete")}</th>
-            <th className="px-4 py-3">BID</th>
+            <th className="px-4 py-3">ID</th>
             <th className="px-4 py-3">{t("clubs.position")}</th>
             <th className="px-4 py-3">{t("clubs.category")}</th>
             <th className="px-4 py-3">{t("clubPanel.squad.contract")}</th>
           </tr></thead>
           <tbody>{data.squad.map((athlete) => <tr key={athlete.bid} className="border-b border-border/60">
             <td className="px-4 py-3"><Link href={`/atletas/${athlete.bid}`} className="font-semibold hover:text-brand">{athlete.name}</Link>{athlete.nickname && <p className="text-xs text-muted">{athlete.nickname}</p>}</td>
-            <td className="metric-value px-4 py-3">{athlete.bid}</td>
+            <td className="metric-value px-4 py-3">{formatAthleteCode(athlete.bid)}</td>
             <td className="px-4 py-3">{athlete.position ?? "—"}</td>
             <td className="px-4 py-3">{athlete.category ?? "—"}</td>
             <td className="px-4 py-3">{athlete.contractEndDate ?? "—"}</td>

@@ -13,7 +13,7 @@ import { ClubeCrest } from "@/components/app/ClubeCrest";
 import { EvolutionChart } from "@/components/atletas/dossie/EvolutionChart";
 import { ClubHistory } from "@/components/atletas/dossie/ClubHistory";
 import { AgentContact } from "@/components/atletas/dossie/AgentContact";
-import { formatDate, formatMonthYear } from "@/lib/format";
+import { formatDate, formatMonthYear, formatAthleteCode } from "@/lib/format";
 import type {
   AtletaRecord, ConquistaRecord, AgenteContactRecord, EvolucaoPoint, CategoriaAcimaMatch, CardEvent, MatchHistoryEntry,
 } from "@/lib/services/atletas";
@@ -63,7 +63,7 @@ export function AtletaDossie({
             <div>
               <h1 className="text-2xl font-extrabold tracking-tight">{a.name}</h1>
               <p className="text-sm text-muted">
-                {a.apelido ? `"${a.apelido}" · ` : ""}BID {a.bid} · {a.currentClubName ?? "—"} · {a.currentCategory ?? "—"}
+                {a.apelido ? `"${a.apelido}" · ` : ""}{formatAthleteCode(a.bid)} · {a.currentClubName ?? "—"} · {a.currentCategory ?? "—"}
               </p>
               <div className="mt-2 flex flex-wrap gap-2">
                 {a.mainPosition && <Badge tone="brand">{a.mainPosition}</Badge>}

@@ -5,6 +5,7 @@ import { Award } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { ClubeCrest } from "@/components/app/ClubeCrest";
 import { cn } from "@/lib/cn";
+import { formatAthleteCode } from "@/lib/format";
 import { useT } from "@/lib/i18n/I18nProvider";
 import type { TranslationKey } from "@/lib/i18n/dictionaries";
 import type { AtletaRecord } from "@/lib/services/atletas";
@@ -59,7 +60,7 @@ export function AtletaComparisonMatrix({ atletas }: { atletas: AtletaRecord[] })
                     <span className="min-w-0">
                       <span className="block truncate font-bold group-hover:text-brand">{atleta.name}</span>
                       <span className="block text-xs font-normal text-muted">
-                        BID {atleta.bid} · {atleta.mainPosition ?? "—"} · {atleta.currentCategory ?? "—"}
+                        {formatAthleteCode(atleta.bid)} · {atleta.mainPosition ?? "—"} · {atleta.currentCategory ?? "—"}
                       </span>
                     </span>
                   </Link>
