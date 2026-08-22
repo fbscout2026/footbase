@@ -182,6 +182,21 @@ const CBF_SOURCES: CbfSourceConfig[] = [
     tabelaPhaseUrls: ["https://www.cbf.com.br/futebol-brasileiro/tabelas/copa-do-nordeste/sub-20/2026"],
   },
   {
+    // Added Session 57: confirmed live this competition now has real 2026 data
+    // (was previously checked and found empty — see CLAUDE.md/PROJECT_STATE
+    // history). Its one existing phase (fase_id 2091, "1a Fase") is labeled
+    // fase_tipo:"eliminacao" but actually returns 32 real matches — no
+    // `"current":X,"total":Y` round-count marker in the page, so
+    // discoverCbfMatchesForPhase correctly falls through to the knock-out
+    // (RSC-embedded) extraction path, same as any other single-phase knockout
+    // URL. Only one phase exists today; later rounds (R32/R16/quarters/etc.)
+    // will need their own fase_id added here as CBF publishes them —
+    // ⚠️ YEARLY MAINTENANCE, same caveat as every other CBF_SOURCES entry.
+    kind: "cbf",
+    label: "CBF Copa do Brasil SUB-20",
+    tabelaPhaseUrls: ["https://www.cbf.com.br/futebol-brasileiro/tabelas/copa-do-brasil/sub-20/2026/2091"],
+  },
+  {
     kind: "cbf",
     label: "CBF Liga de Desenvolvimento SUB-13 Masculino",
     tabelaPhaseUrls: [
