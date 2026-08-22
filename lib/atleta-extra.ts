@@ -6,7 +6,7 @@ import type { AtletaRecord } from "@/lib/services/atletas";
 // ranking, where a single summary number is being shown, not a history.
 //
 // Session 52: this used to also generate a fake 6-point "evolution" SERIES (a
-// deterministic wave seeded by bid, with synthetic noise/trend per point) and
+// deterministic wave seeded by fbId, with synthetic noise/trend per point) and
 // present it as a per-round chart — reported live by the user as misleading:
 // an athlete with exactly 1 real match showed a 6-point trending line. The
 // single aggregate number below is still honest (it's real stats, clearly
@@ -81,7 +81,7 @@ const HISTORY: Record<number, ClubHistoryEntry[]> = {
 };
 
 export function getHistoricoClubes(a: AtletaRecord): ClubHistoryEntry[] {
-  const explicit = HISTORY[a.bid];
+  const explicit = HISTORY[a.fbId];
   if (explicit) return explicit;
   if (!a.currentClubName) return []; // no known club at all — nothing to show, not a guess
   return [

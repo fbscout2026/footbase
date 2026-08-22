@@ -83,9 +83,9 @@ export function TorneioDetail({ data }: { data: TorneioDetailData }) {
             ) : (
               <ol className="mt-2 divide-y divide-border">
                 {data.topScorers.map((s, i) => (
-                  <li key={s.bid} className="flex items-center gap-3 py-2.5">
+                  <li key={s.fbId} className="flex items-center gap-3 py-2.5">
                     <span className="w-5 shrink-0 text-center text-sm font-bold text-brand">{i + 1}</span>
-                    <Link href={`/atletas/${s.bid}`} className="min-w-0 flex-1 truncate text-sm font-medium hover:text-brand">
+                    <Link href={`/atletas/${s.fbId}`} className="min-w-0 flex-1 truncate text-sm font-medium hover:text-brand">
                       {s.name}
                     </Link>
                     <span className="shrink-0 text-sm font-bold">{s.goals}</span>

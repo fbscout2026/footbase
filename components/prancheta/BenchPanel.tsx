@@ -18,10 +18,10 @@ export function BenchPanel({ candidates, athletes }: { candidates: RankingCandid
       <div className="scroll-brand max-h-[680px] space-y-2 overflow-y-auto p-3">
         {candidates.length === 0 && <p className="py-8 text-center text-sm text-muted">{t("board.emptyBench")}</p>}
         {candidates.map((candidate, index) => {
-          const athlete = athletes.get(candidate.bid);
+          const athlete = athletes.get(candidate.fbId);
           if (!athlete) return null;
           return (
-            <div key={candidate.bid} className="flex items-center gap-3 border border-border bg-background p-3">
+            <div key={candidate.fbId} className="flex items-center gap-3 border border-border bg-background p-3">
               <span className="w-5 text-center text-xs font-bold text-muted">{index + 1}</span>
               <ClubeCrest src={athlete.currentClubCrestUrl} name={athlete.currentClubName ?? "?"} size={30} />
               <div className="min-w-0 flex-1">

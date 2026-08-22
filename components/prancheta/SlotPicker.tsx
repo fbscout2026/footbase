@@ -42,13 +42,13 @@ export function SlotPicker({
         <div className="scroll-brand mt-4 max-h-[55vh] space-y-2 overflow-y-auto pr-1">
           {candidates.length === 0 && <p className="py-8 text-center text-sm text-muted">{t("board.noCompatible")}</p>}
           {candidates.map(({ candidate, score, secondary }) => {
-            const athlete = athletes.get(candidate.bid);
+            const athlete = athletes.get(candidate.fbId);
             if (!athlete) return null;
             return (
               <button
-                key={candidate.bid}
+                key={candidate.fbId}
                 type="button"
-                onClick={() => onChoose(candidate.bid)}
+                onClick={() => onChoose(candidate.fbId)}
                 className="flex w-full items-center gap-3 border border-border bg-background p-3 text-left transition-colors hover:border-brand/50 hover:bg-surface-hover"
               >
                 <ClubeCrest src={athlete.currentClubCrestUrl} name={athlete.currentClubName ?? "?"} size={34} />

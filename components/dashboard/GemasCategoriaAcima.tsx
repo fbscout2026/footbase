@@ -21,9 +21,9 @@ export function GemasCategoriaAcima({ athletes: gems }: { athletes: GemRow[] }) 
       ) : (
         <ul className="scroll-brand max-h-80 divide-y divide-border overflow-y-auto">
           {gems.map((a) => (
-            <li key={a.bid}>
+            <li key={a.fbId}>
               <Link
-                href={`/atletas/${a.bid}`}
+                href={`/atletas/${a.fbId}`}
                 className="flex items-center justify-between gap-3 py-2.5 transition-colors hover:text-brand"
               >
                 <span className="min-w-0">

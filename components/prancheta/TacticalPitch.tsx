@@ -46,7 +46,7 @@ export function TacticalPitch({
 
       {slots.map((slot, order) => {
         const entry = lineup.find((item) => item.order === order);
-        const athlete = entry ? athletes.get(entry.bid) : undefined;
+        const athlete = entry ? athletes.get(entry.fbId) : undefined;
         return (
           <button
             key={slot.id}

@@ -12,9 +12,9 @@ import {
 
 interface FavoritesContextValue {
   favorites: FavoriteRecord[];
-  getFavorite: (bid: number) => FavoriteRecord | undefined;
-  saveFavorite: (bid: number, rating: number, notes: string | null) => Promise<void>;
-  removeFavorite: (bid: number) => Promise<void>;
+  getFavorite: (fbId: number) => FavoriteRecord | undefined;
+  saveFavorite: (fbId: number, rating: number, notes: string | null) => Promise<void>;
+  removeFavorite: (fbId: number) => Promise<void>;
   savingBid: number | null;
   loadFailed: boolean;
 }
@@ -59,27 +59,27 @@ export function FavoritesProvider({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [client, userId]);
 
-  function getFavorite(bid: number) {
-    return favorites.find((favorite) => favorite.bid === bid);
+  function getFavorite(fbId: number) {
+    return favorites.find((favorite) => favorite.fbId === fbId);
   }
 
-  async function saveFavorite(bid: number, rating: number, notes: string | null) {
+  async function saveFavorite(fbId: number, rating: number, notes: string | null) {
     if (mutationInFlight.current) throw new Error("favorite-mutation-in-progress");
     mutationInFlight.current = true;
     const previous = favorites;
-    const current = getFavorite(bid);
+    const current = getFavorite(fbId);
     const optimistic: FavoriteRecord = {
-      id: current?.id ?? `optimistic-${bid}`,
+      id: current?.id ?? `optimistic-${fbId}`,
       userId,
-      bid,
+      fbId,
       rating: Math.max(0, Math.min(100, Math.round(rating))),
       notes: notes?.trim() || null,
     };
-    setSavingBid(bid);
-    setFavorites((items) => [optimistic, ...items.filter((item) => item.bid !== bid)]);
+    setSavingBid(fbId);
+    setFavorites((items) => [optimistic, ...items.filter((item) => item.fbId !== fbId)]);
     try {
-      const saved = await upsertFavorite(client, { userId, bid, rating, notes });
-      setFavorites((items) => [saved, ...items.filter((item) => item.bid !== bid)]);
+      const saved = await upsertFavorite(client, { userId, fbId, rating, notes });
+      setFavorites((items) => [saved, ...items.filter((item) => item.fbId !== fbId)]);
     } catch (error) {
       setFavorites(previous);
       throw error;
@@ -89,14 +89,14 @@ export function FavoritesProvider({
     }
   }
 
-  async function removeFavorite(bid: number) {
+  async function removeFavorite(fbId: number) {
     if (mutationInFlight.current) throw new Error("favorite-mutation-in-progress");
     mutationInFlight.current = true;
     const previous = favorites;
-    setSavingBid(bid);
-    setFavorites((items) => items.filter((item) => item.bid !== bid));
+    setSavingBid(fbId);
+    setFavorites((items) => items.filter((item) => item.fbId !== fbId));
     try {
-      await removeFavoriteRequest(client, bid);
+      await removeFavoriteRequest(client, fbId);
     } catch (error) {
       setFavorites(previous);
       throw error;

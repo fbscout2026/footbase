@@ -8,7 +8,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 // unbounded/unwrapped query on this view times out past a few thousand rows.
 
 export interface DashboardAthleteRow {
-  bid: number;
+  fbId: number;
   name: string;
   currentClubName: string | null;
   currentCategory: string | null;
@@ -30,10 +30,10 @@ export interface ContractRow extends DashboardAthleteRow {
   contractEndDate: string | null;
 }
 
-const ROW_COLUMNS = "bid,name,current_club_name,current_category";
+const ROW_COLUMNS = "fb_id,name,current_club_name,current_category";
 
-function toAthleteRow(r: { bid: number; name: string; current_club_name: string | null; current_category: string | null }): DashboardAthleteRow {
-  return { bid: Number(r.bid), name: r.name, currentClubName: r.current_club_name, currentCategory: r.current_category };
+function toAthleteRow(r: { fb_id: number; name: string; current_club_name: string | null; current_category: string | null }): DashboardAthleteRow {
+  return { fbId: Number(r.fb_id), name: r.name, currentClubName: r.current_club_name, currentCategory: r.current_category };
 }
 
 export async function loadTopScorers(client: SupabaseClient, limit = 6): Promise<ScorerRow[]> {
@@ -126,7 +126,7 @@ export async function loadBoardSummary(client: SupabaseClient, userId: string): 
 export interface DashboardHeroStats {
   sumulasCount: number;
   athletesCount: number;
-  topScorer: { bid: number; name: string; goals: number } | null;
+  topScorer: { fbId: number; name: string; goals: number } | null;
 }
 
 // "Destaque da rodada" ranks by `goals_last5` (Session 55) — goals over each
@@ -136,8 +136,8 @@ export interface DashboardHeroStats {
 export async function loadHeroStats(client: SupabaseClient): Promise<DashboardHeroStats> {
   const [sumulas, athletes, top] = await Promise.all([
     client.from("partidas_sumula").select("id", { count: "exact", head: true }),
-    client.from("atletas").select("bid", { count: "exact", head: true }),
-    client.from("atletas").select("bid,name,goals_last5").gt("goals_last5", 0).order("goals_last5", { ascending: false }).limit(1).maybeSingle(),
+    client.from("atletas").select("fb_id", { count: "exact", head: true }),
+    client.from("atletas").select("fb_id,name,goals_last5").gt("goals_last5", 0).order("goals_last5", { ascending: false }).limit(1).maybeSingle(),
   ]);
   if (sumulas.error) throw sumulas.error;
   if (athletes.error) throw athletes.error;
@@ -145,7 +145,7 @@ export async function loadHeroStats(client: SupabaseClient): Promise<DashboardHe
   return {
     sumulasCount: sumulas.count ?? 0,
     athletesCount: athletes.count ?? 0,
-    topScorer: top.data ? { bid: Number(top.data.bid), name: top.data.name, goals: top.data.goals_last5 } : null,
+    topScorer: top.data ? { fbId: Number(top.data.fb_id), name: top.data.name, goals: top.data.goals_last5 } : null,
   };
 }
 
@@ -163,15 +163,15 @@ export interface NotificationsSummary {
 // "newGems" is really "current gems among favorites", not a true delta —
 // there's no per-user "last seen" state to detect a genuine change yet.
 export async function loadNotificationsSummary(client: SupabaseClient, userId: string): Promise<NotificationsSummary> {
-  const favs = await client.from("favoritos").select("bid_atleta").eq("user_id", userId);
+  const favs = await client.from("favoritos").select("fb_id_atleta").eq("user_id", userId);
   if (favs.error) throw favs.error;
-  const bids = (favs.data ?? []).map((f) => f.bid_atleta);
+  const bids = (favs.data ?? []).map((f) => f.fb_id_atleta);
   if (bids.length === 0) return { count: 0, contractsExpiring: 0, inactive: 0, newGems: 0 };
 
   const { data, error } = await client
     .from("view_atleta_resumo")
-    .select("bid,contract_status,is_inactive_30d,games_above_current_category")
-    .in("bid", bids);
+    .select("fb_id,contract_status,is_inactive_30d,games_above_current_category")
+    .in("fb_id", bids);
   if (error) throw error;
 
   const contractsExpiring = (data ?? []).filter((r) => r.contract_status === "expiring_soon" || r.contract_status === "expired").length;

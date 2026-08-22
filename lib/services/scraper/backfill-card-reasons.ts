@@ -166,9 +166,9 @@ async function main(): Promise<void> {
 
       // Only appearances that already exist in atuacoes_sumula for this match — this
       // backfill never creates/removes appearances, only fills the two new fields.
-      const { data: existing, error: exErr } = await admin.from("atuacoes_sumula").select("id, bid_atleta").eq("partida_id", p.id);
+      const { data: existing, error: exErr } = await admin.from("atuacoes_sumula").select("id, fb_id_atleta").eq("partida_id", p.id);
       if (exErr) throw exErr;
-      const atuacaoIdByBid = new Map((existing ?? []).map((r) => [Number(r.bid_atleta), r.id as string]));
+      const atuacaoIdByBid = new Map((existing ?? []).map((r) => [Number(r.fb_id_atleta), r.id as string]));
 
       const clubUpdates: { id: string; club_id: string }[] = [];
       const cardRows: { atuacao_id: string; card_type: "yellow" | "red"; reason: string }[] = [];

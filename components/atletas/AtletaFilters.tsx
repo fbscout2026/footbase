@@ -49,8 +49,8 @@ export function AtletaFilters({
           <Field label={t("atletas.filters.name")}>
             <TextInput value={filters.name} onChange={(v) => set("name", v)} />
           </Field>
-          <Field label={t("atletas.filters.bid")}>
-            <TextInput value={filters.bid} onChange={(v) => set("bid", v)} placeholder="FB-ID" />
+          <Field label={t("atletas.filters.fbId")}>
+            <TextInput value={filters.fbId} onChange={(v) => set("fbId", v)} placeholder="FB-ID" />
           </Field>
         </Group>
 

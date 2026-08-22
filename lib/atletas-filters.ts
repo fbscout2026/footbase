@@ -17,7 +17,7 @@ export const CATEGORY_ORDER: Categoria[] = [
 export interface AtletaFilterState {
   // identification
   name: string;
-  bid: string;
+  fbId: string;
   // categoria (exact | between)
   categoryMode: Mode;
   categoryExact: Categoria | "";
@@ -55,7 +55,7 @@ export interface AtletaFilterState {
 }
 
 export const emptyFilters: AtletaFilterState = {
-  name: "", bid: "",
+  name: "", fbId: "",
   categoryMode: "exact", categoryExact: "", categoryFrom: "", categoryTo: "",
   ageMode: "exact", ageExact: "", ageFrom: "", ageTo: "",
   heightMode: "exact", heightExact: "", heightFrom: "", heightTo: "",

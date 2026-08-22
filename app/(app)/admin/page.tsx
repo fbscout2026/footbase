@@ -74,11 +74,11 @@ export default async function AdminPage() {
 
   let transferHistory: TransferRecord[] | null = null;
   if (transferR.status === "fulfilled" && agentNamesR.status === "fulfilled" && athletesR.status === "fulfilled") {
-    const athleteNameByBid = new Map(athletesR.value.map((a) => [a.bid, a.name]));
+    const athleteNameByBid = new Map(athletesR.value.map((a) => [a.fbId, a.name]));
     const agentNames = agentNamesR.value;
     transferHistory = transferR.value.map((h) => ({
       ...h,
-      athleteName: athleteNameByBid.get(h.bidAtleta) ?? null,
+      athleteName: athleteNameByBid.get(h.fbIdAtleta) ?? null,
       agenteAnteriorName: h.agenteAnteriorId ? (agentNames[h.agenteAnteriorId] ?? null) : null,
       agenteNovoName: agentNames[h.agenteNovoId] ?? null,
       adminName: byId.get(h.adminId)?.fullName ?? null,

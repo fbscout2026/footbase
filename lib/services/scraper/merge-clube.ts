@@ -108,7 +108,7 @@ async function previewAndMerge(loserId: string, winnerId: string, confirm: boole
     console.log(`  [ok] ${table}.${column}: ${updated ?? "?"} linha(s) repontada(s)`);
   }
 
-  const { count: remaining } = await admin.from("atletas").select("bid", { count: "exact", head: true }).eq("current_club_id", loserId);
+  const { count: remaining } = await admin.from("atletas").select("fb_id", { count: "exact", head: true }).eq("current_club_id", loserId);
   console.log(`\n[merge-clube] Verificação final: ${remaining ?? 0} referência(s) restante(s) em atletas.current_club_id (deve ser 0).`);
 
   let stillReferenced = 0;

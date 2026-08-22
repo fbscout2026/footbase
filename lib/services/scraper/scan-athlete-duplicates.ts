@@ -181,18 +181,18 @@ export function findDuplicateGroups(athletes: AthleteRow[]): DuplicateGroup[] {
  * resolved (merged/dismissed) — a re-run only ever adds genuinely NEW candidates.
  */
 async function persistCandidates(admin: SupabaseClient, groups: DuplicateGroup[]): Promise<number> {
-  const rows: { bid_a: number; bid_b: number; tier: "forte" | "clube+nome" }[] = [];
+  const rows: { fb_id_a: number; fb_id_b: number; tier: "forte" | "clube+nome" }[] = [];
   for (const group of groups) {
     if (group.tier !== "forte" && group.tier !== "clube+nome") continue;
     const bids = group.members.map((m) => m.bid).sort((a, b) => a - b);
     for (let i = 0; i < bids.length; i++) {
       for (let j = i + 1; j < bids.length; j++) {
-        rows.push({ bid_a: bids[i]!, bid_b: bids[j]!, tier: group.tier });
+        rows.push({ fb_id_a: bids[i]!, fb_id_b: bids[j]!, tier: group.tier });
       }
     }
   }
   if (rows.length === 0) return 0;
-  const { error } = await admin.from("atleta_duplicate_candidates").upsert(rows, { onConflict: "bid_a,bid_b", ignoreDuplicates: true });
+  const { error } = await admin.from("atleta_duplicate_candidates").upsert(rows, { onConflict: "fb_id_a,fb_id_b", ignoreDuplicates: true });
   if (error) throw error;
   return rows.length;
 }
@@ -205,7 +205,10 @@ async function main(): Promise<void> {
   if (!url || !key) throw new Error("missing NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY");
   const admin = createClient(url, key);
 
-  const athletes = await selectAll<AthleteRow>(admin, "atletas", "bid, name, birth_date, current_club_id, current_category, total_matches");
+  const rawAthletes = await selectAll<{ fb_id: number; name: string; birth_date: string | null; current_club_id: string | null; current_category: string | null; total_matches: number }>(
+    admin, "atletas", "fb_id, name, birth_date, current_club_id, current_category, total_matches",
+  );
+  const athletes: AthleteRow[] = rawAthletes.map((r) => ({ bid: r.fb_id, name: r.name, birth_date: r.birth_date, current_club_id: r.current_club_id, current_category: r.current_category, total_matches: r.total_matches }));
   console.log(`[scan-atleta] ${athletes.length} atleta(s) carregado(s)`);
 
   const clubIds = [...new Set(athletes.map((a) => a.current_club_id).filter((id): id is string => id != null))];

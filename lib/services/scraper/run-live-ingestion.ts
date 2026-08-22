@@ -32,6 +32,7 @@ import { type Page } from "playwright";
 import { readFileSync, existsSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import type { ParsedMatch } from "./types.ts";
 import { fetchSumulaText } from "./extract-pdf-text.ts";
 import { parseFpfSumula } from "./parse-fpf-sumula.ts";
 import { reconcileFpfParsedMatch } from "./reconciliation-fpf.ts";
@@ -337,6 +338,12 @@ async function processFpfSource(page: Page, admin: SupabaseClient, cfg: FpfSourc
 async function processCbfSource(admin: SupabaseClient, cfg: CbfSourceConfig, dryRun: boolean, touch: () => void): Promise<ExecutorItemResult[]> {
   const results: ExecutorItemResult[] = [];
 
+  // Session 56 — resolve every athlete through atleta_fontes before writing (see
+  // `resolveSourceAthleteIdentities`'s doc for exactly what this does and does not
+  // catch yet). Loaded once per source-run, same as FERJ's `loadFerjIdentityState`.
+  const identityState = await loadSourceIdentityState(admin, "cbf");
+  touch();
+
   const phaseBatches = await forEachRateLimited(cfg.tabelaPhaseUrls, (u) => discoverCbfMatchesForPhase(u), { minDelayMs: 1000, jitterMs: 500, onItemDone: touch });
   const matchRefs = phaseBatches.flatMap((b) => b.result ?? []);
   const withLinksAll = matchRefs.filter((ref): ref is typeof ref & { sumulaUrl: string } => !!ref.sumulaUrl);
@@ -370,6 +377,7 @@ async function processCbfSource(admin: SupabaseClient, cfg: CbfSourceConfig, dry
         ...(idClubeMandante ? { homeSourceKey: `cbf:${idClubeMandante}` } : {}),
         ...(idClubeVisitante ? { awaySourceKey: `cbf:${idClubeVisitante}` } : {}),
       });
+      await resolveSourceAthleteIdentities(admin, "cbf", match, identityState, dryRun);
       const reconciliationErrors = reconcileParsedMatch(match);
       if (reconciliationErrors.length > 0) {
         return { outcome: "reconciliation-failed" as const, detail: reconciliationErrors.join("; ") };
@@ -452,12 +460,93 @@ async function selectAll<T>(admin: SupabaseClient, table: string, columns: strin
 }
 
 export async function loadFerjIdentityState(admin: SupabaseClient): Promise<FerjIdentityState> {
-  const existingAthletesData = await selectAll<{ bid: number; name: string; birth_date: string | null }>(admin, "atletas", "bid, name, birth_date");
-  const existingAthletes = existingAthletesData.map((a) => ({ bid: a.bid, name: a.name, birthDate: a.birth_date ?? "" }));
-  const ferjMappingsData = await selectAll<{ id_externo: string; bid: number }>(admin, "atleta_fontes", "id_externo, bid", (q) => q.eq("fonte", "ferj"));
-  const ferjMappings = ferjMappingsData.map((m) => ({ fonte: "ferj", externalId: String(m.id_externo), bid: Number(m.bid) }));
+  const existingAthletesData = await selectAll<{ fb_id: number; name: string; birth_date: string | null }>(admin, "atletas", "fb_id, name, birth_date");
+  const existingAthletes = existingAthletesData.map((a) => ({ bid: a.fb_id, name: a.name, birthDate: a.birth_date ?? "" }));
+  const ferjMappingsData = await selectAll<{ id_externo: string; fb_id: number }>(admin, "atleta_fontes", "id_externo, fb_id", (q) => q.eq("fonte", "ferj"));
+  const ferjMappings = ferjMappingsData.map((m) => ({ fonte: "ferj", externalId: String(m.id_externo), bid: Number(m.fb_id) }));
   const nextProvisionalBidValue = await nextProvisionalBid(admin);
   return { existingAthletes, ferjMappings, nextProvisionalBid: nextProvisionalBidValue };
+}
+
+// Generalized identity-source state (Session 56 — "FB-ID: chave suprema"), used by
+// any source whose roster carries a real bid directly (CBF/FMF/FGF today) instead of
+// a foreign id needing a bridge (FERJ/FPF's bira/registro, which keep their own
+// `FerjIdentityState`/loader above — no need to migrate an already-working, already-
+// tested path). Loaded once per source-run, mirroring `loadFerjIdentityState`'s
+// shape exactly so the resolution loop below is a straight copy of FERJ's own.
+export interface SourceIdentityState {
+  fonte: string;
+  existingAthletes: { bid: number; name: string; birthDate: string }[];
+  mappings: { fonte: string; externalId: string; bid: number }[];
+}
+
+export async function loadSourceIdentityState(admin: SupabaseClient, fonte: string): Promise<SourceIdentityState> {
+  const existingAthletesData = await selectAll<{ fb_id: number; name: string; birth_date: string | null }>(admin, "atletas", "fb_id, name, birth_date");
+  const existingAthletes = existingAthletesData.map((a) => ({ bid: a.fb_id, name: a.name, birthDate: a.birth_date ?? "" }));
+  const mappingsData = await selectAll<{ id_externo: string; fb_id: number }>(admin, "atleta_fontes", "id_externo, fb_id", (q) => q.eq("fonte", fonte));
+  const mappings = mappingsData.map((m) => ({ fonte, externalId: String(m.id_externo), bid: Number(m.fb_id) }));
+  return { fonte, existingAthletes, mappings };
+}
+
+/**
+ * Resolves every athlete in a parsed match that already carries a real source bid
+ * (CBF/FMF/FGF today — see `SourceIdentityState`'s doc), rewriting `a.bid` on both
+ * `match.athletes` and `match.appearances` in place to whatever `fb_id` the resolver
+ * lands on BEFORE `ingestMatch` ever sees them — same "resolve first, mutate the
+ * parsed data, call ingestMatch unchanged" pattern `ingestOneFerjMatch` already uses.
+ *
+ * Session 56 fix this closes: today, a brand-new source-provided bid is trusted
+ * blindly (bypassing this resolver entirely) even when the same real person already
+ * exists in `atletas` under a different (e.g. provisional) fb_id from another source
+ * — creating a duplicate identity across federations. Wiring the source through this
+ * resolver instead means tier 1 (atleta_fontes mapping) and tier 2 (bid already
+ * exists as a row) safely cover the common case, and any future birth_date/club data
+ * this source starts providing would immediately start closing the remaining gap
+ * (see `resolveAthleteIdentity`'s own doc) with zero further changes needed here.
+ *
+ * NOTE (documented limitation, not silently swept under the rug): this call site
+ * does not have a birth_date (CBF athlete-profile fetching is a separate, still-
+ * unimplemented piece — `cbf-athlete-profile.ts`) or a resolved club UUID (would
+ * need an extra `clubes` lookup by source_key) available yet, so the name+birth_date
+ * / name+club tiers cannot actively confirm anything for these sources today — they
+ * safely fall through to "new" exactly like before, never producing a false match
+ * (bare name matching alone was proven unsafe empirically this session — never
+ * loosened here either). Tiers 1–2 alone already close the confirmed duplicate bug
+ * for the cases they cover (an already-known bid or mapping); the rest is future
+ * work once profile data is wired in, not a regression from today.
+ */
+async function resolveSourceAthleteIdentities(admin: SupabaseClient, fonte: string, match: ParsedMatch, state: SourceIdentityState, dryRun: boolean): Promise<void> {
+  const bidByOriginal = new Map<number, number>();
+  for (const athlete of match.athletes) {
+    const externalId = String(athlete.bid);
+    const existingMapping = state.mappings.find((m) => m.externalId === externalId);
+    let resolvedBid: number;
+    if (existingMapping) {
+      resolvedBid = existingMapping.bid;
+    } else {
+      const res = resolveAthleteIdentity(
+        { fonte, externalId, cbfBid: athlete.bid, name: athlete.name, birthDate: athlete.birthDate ?? null },
+        { existing: state.existingAthletes, mappings: state.mappings },
+      );
+      if (res.kind === "bid" || res.kind === "mapped" || res.kind === "matched") {
+        resolvedBid = res.bid;
+      } else {
+        // "new"/"ambiguous": never guess — a genuinely new person (or an
+        // unconfirmed name collision) gets their own fresh identity, same
+        // conservative behavior FERJ's loop already uses.
+        resolvedBid = athlete.bid;
+        state.existingAthletes.push({ bid: resolvedBid, name: athlete.name, birthDate: athlete.birthDate ?? "" });
+      }
+      if (!dryRun) {
+        const insM = await admin.from("atleta_fontes").insert({ fonte, id_externo: externalId, fb_id: resolvedBid });
+        if (insM.error) throw insM.error;
+      }
+      state.mappings.push({ fonte, externalId, bid: resolvedBid });
+    }
+    bidByOriginal.set(athlete.bid, resolvedBid);
+  }
+  for (const athlete of match.athletes) athlete.bid = bidByOriginal.get(athlete.bid) ?? athlete.bid;
+  for (const appearance of match.appearances) appearance.bid = bidByOriginal.get(appearance.bid) ?? appearance.bid;
 }
 
 export interface FerjMatchOutcome {
@@ -498,7 +587,7 @@ export async function ingestOneFerjMatch(
     if (res.kind === "bid" || res.kind === "mapped" || res.kind === "matched") {
       bid = res.bid;
       if (!dryRun && res.kind !== "mapped") {
-        const insM = await admin.from("atleta_fontes").insert({ fonte: "ferj", id_externo: athlete.bira, bid });
+        const insM = await admin.from("atleta_fontes").insert({ fonte: "ferj", id_externo: athlete.bira, fb_id: bid });
         if (insM.error) throw insM.error;
       }
     } else {
@@ -581,6 +670,11 @@ async function processFerjSource(admin: SupabaseClient, cfg: FerjSourceConfig, d
 async function processFmfSource(admin: SupabaseClient, cfg: FmfSourceConfig, dryRun: boolean, touch: () => void): Promise<ExecutorItemResult[]> {
   const results: ExecutorItemResult[] = [];
 
+  // Session 56 — same resolver wiring as CBF (see `resolveSourceAthleteIdentities`'s
+  // doc for exactly what tiers apply here vs. not yet).
+  const identityState = await loadSourceIdentityState(admin, "fmf");
+  touch();
+
   const matchRefsAll = await discoverFmfCompetition(cfg.d);
   touch();
 
@@ -619,6 +713,7 @@ async function processFmfSource(admin: SupabaseClient, cfg: FmfSourceConfig, dry
         awayCrestUrl: ref.awayCrestUrl,
       });
       const unresolvedCount = [...roster.home, ...roster.away].filter((p) => p.bid == null).length;
+      await resolveSourceAthleteIdentities(admin, "fmf", match, identityState, dryRun);
       // A walkover has an official score but genuinely no gameplay to reconcile
       // against (see `parseFmfSumula`'s doc) — relax the same checks as an
       // unresolved-identity match, for a different underlying reason.
@@ -672,6 +767,11 @@ function fgfClubSlug(name: string): string {
 async function processFgfSource(admin: SupabaseClient, cfg: FgfSourceConfig, dryRun: boolean, touch: () => void): Promise<ExecutorItemResult[]> {
   const results: ExecutorItemResult[] = [];
 
+  // Session 56 — same resolver wiring as CBF (see `resolveSourceAthleteIdentities`'s
+  // doc for exactly what tiers apply here vs. not yet).
+  const identityState = await loadSourceIdentityState(admin, "fgf");
+  touch();
+
   const matchRefsAll = await discoverFgfCompetition(cfg.competitionId);
   touch();
 
@@ -705,6 +805,7 @@ async function processFgfSource(admin: SupabaseClient, cfg: FgfSourceConfig, dry
         federation: "FGF",
         clubFederacao: "FGF",
       });
+      await resolveSourceAthleteIdentities(admin, "fgf", match, identityState, dryRun);
       const reconciliationErrors = reconcileParsedMatch(match);
       if (reconciliationErrors.length > 0) {
         return { outcome: "reconciliation-failed" as const, detail: reconciliationErrors.join("; "), sourceUrl: sumulaUrl };
@@ -920,7 +1021,12 @@ async function main(): Promise<void> {
   const byOutcome = new Map<string, number>();
   for (const r of allResults) byOutcome.set(r.outcome, (byOutcome.get(r.outcome) ?? 0) + 1);
   console.log("\n[executor] resumo:", Object.fromEntries(byOutcome));
-  for (const r of allResults.filter((r) => r.outcome !== "ingested" && r.outcome !== "skipped-already-done")) {
+  // VERBOSE=true also prints each successfully-ingested item's own plan detail
+  // (atuações/atletas novos) — useful for a go-live dry-run sample check (e.g.
+  // confirming an athlete resolves to an existing fb_id instead of duplicating),
+  // off by default since a full run's "ingested" list can be large.
+  const verbose = process.env.VERBOSE === "true";
+  for (const r of allResults.filter((r) => (verbose || r.outcome !== "ingested") && r.outcome !== "skipped-already-done")) {
     console.log(`  [${r.outcome}] ${r.source} — ${r.sourceUrl}\n    ${r.detail}`);
   }
 }

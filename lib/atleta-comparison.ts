@@ -53,17 +53,17 @@ export const comparisonMetrics: ComparisonMetric[] = [
 ];
 
 // No longer whitelists against a preloaded athlete list (the real dataset is
-// 3,000+ athletes — fetching every bid just to validate membership doesn't
-// scale). Format/dedup/limit(3) still applies; a bid that doesn't actually
+// 3,000+ athletes — fetching every fbId just to validate membership doesn't
+// scale). Format/dedup/limit(3) still applies; a fbId that doesn't actually
 // exist simply returns no row when the real athletes are fetched downstream —
 // the same effective result, just resolved lazily instead of eagerly.
 export function parseComparisonBids(raw: string | null, limit = 3): number[] {
   if (!raw) return [];
   const unique: number[] = [];
   for (const part of raw.split(",")) {
-    const bid = Number(part.trim());
-    if (Number.isInteger(bid) && bid > 0 && !unique.includes(bid)) {
-      unique.push(bid);
+    const fbId = Number(part.trim());
+    if (Number.isInteger(fbId) && fbId > 0 && !unique.includes(fbId)) {
+      unique.push(fbId);
       if (unique.length === limit) break;
     }
   }
@@ -81,7 +81,7 @@ export function getWinningBids(metric: ComparisonMetric, atletas: AtletaRecord[]
     metric.direction,
     atletas.map((atleta) => {
       const value = metric.value(atleta);
-      return { id: atleta.bid, value: typeof value === "number" ? value : null };
+      return { id: atleta.fbId, value: typeof value === "number" ? value : null };
     })
   );
 }

@@ -25,7 +25,7 @@ export function HeroBanner({ stats, notifications }: { stats: DashboardHeroStats
       label: t("dashboard.hero.highlight"),
       value: stats.topScorer?.name ?? "—",
       hint: stats.topScorer ? `${stats.topScorer.goals} ${t("hero.goals")} · ${t("dashboard.hero.last5")}` : undefined,
-      href: stats.topScorer ? `/atletas/${stats.topScorer.bid}` : undefined,
+      href: stats.topScorer ? `/atletas/${stats.topScorer.fbId}` : undefined,
     },
     {
       icon: Users,

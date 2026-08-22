@@ -27,7 +27,7 @@ const CONTRACT_TONE = {
   free_agent: "brand",
 } as const;
 
-// Possibly-null fields sort as the largest value (a sentinel, never a real bid/
+// Possibly-null fields sort as the largest value (a sentinel, never a real fbId/
 // age/height) so unknowns land at the end on ascending sort — real scraped
 // athletes are missing most biographic fields, and this is friendlier than
 // having "—" rows scattered by JS's default (inconsistent) null ordering.
@@ -129,20 +129,20 @@ export function AtletasTable({ atletas }: { atletas: AtletaRecord[] }) {
           {sorted.map((a, i) => {
             return (
               <tr
-                key={a.bid}
-                onClick={() => router.push(`/atletas/${a.bid}`)}
+                key={a.fbId}
+                onClick={() => router.push(`/atletas/${a.fbId}`)}
                 className="cursor-pointer border-b border-border/60 transition-colors hover:bg-surface-hover"
               >
                 <td className="px-3 py-2 text-muted">{i + 1}</td>
                 <td className="px-2 py-2 text-center">
-                  <FavoriteButton bid={a.bid} athleteName={a.name} compact />
+                  <FavoriteButton fbId={a.fbId} athleteName={a.name} compact />
                 </td>
                 <td className="px-3 py-2">
                   <div className="flex items-center gap-2">
                     <ClubeCrest src={a.currentClubCrestUrl} name={a.currentClubName ?? "?"} size={22} />
                     <div className="min-w-0">
                       <Link
-                        href={`/atletas/${a.bid}`}
+                        href={`/atletas/${a.fbId}`}
                         onClick={(event) => event.stopPropagation()}
                         className="block truncate font-medium hover:text-brand"
                       >

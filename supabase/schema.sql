@@ -3,8 +3,11 @@
 -- Aligned with the official Use-Case & Functional Spec (v3.0).
 -- ============================================================================
 -- Architectural notes:
---  * `atletas.bid` (CBF registration number) is the PK — the real-world dedup
---    key across tournaments/federations, never a surrogate.
+--  * `atletas.fb_id` is the PK — a permanent internal identity, never a
+--    federation's own registry number. Every source (CBF's BID, FERJ's BIRA,
+--    or any other federation's id) resolves through `atleta_fontes`
+--    (fonte + id_externo -> fb_id) instead of being written directly as the
+--    identity, so the same athlete keeps one fb_id across federations.
 --  * Account gate lives on `profiles` (pending->approved); per-agent claim
 --    authority lives on `agentes.verified_status`. Clubs are "seed profiles":
 --    never created by users, only by scraping ingestion, and claimed via the
@@ -55,10 +58,10 @@ $$;
 
 -- Recomputes one athlete's precomputed stat columns (Session 55) from the
 -- ground truth in atuacoes_sumula/partidas_sumula. Idempotent — safe to call
--- any number of times for the same bid (e.g. a reprocessed/corrected match).
+-- any number of times for the same fb_id (e.g. a reprocessed/corrected match).
 -- Called by the ingestion pipeline once per affected athlete right after
 -- appearances are upserted (see lib/services/scraper/ingest.ts).
-create or replace function recompute_atleta_stats(p_bid bigint)
+create or replace function recompute_atleta_stats(p_fb_id bigint)
 returns void
 language plpgsql
 security definer
@@ -67,7 +70,7 @@ as $$
 declare
   v_current_category text;
 begin
-  select current_category into v_current_category from atletas where bid = p_bid;
+  select current_category into v_current_category from atletas where fb_id = p_fb_id;
 
   update atletas a set
     total_matches = coalesce(stats.total_matches, 0),
@@ -95,7 +98,7 @@ begin
       max(p.match_date) as last_match_date
     from atuacoes_sumula s
     join partidas_sumula p on p.id = s.partida_id
-    where s.bid_atleta = p_bid
+    where s.fb_id_atleta = p_fb_id
   ) stats,
   lateral (
     select coalesce(sum(recent5.goals), 0)::int as goals_last5
@@ -103,14 +106,20 @@ begin
       select s.goals
       from atuacoes_sumula s
       join partidas_sumula p on p.id = s.partida_id
-      where s.bid_atleta = p_bid
+      where s.fb_id_atleta = p_fb_id
       order by p.match_date desc
       limit 5
     ) recent5
   ) recent
-  where a.bid = p_bid;
+  where a.fb_id = p_fb_id;
 end;
 $$;
+
+-- Ingestion-only (lib/services/scraper/ingest.ts, merge-atleta-core.ts) — SECURITY
+-- DEFINER, so without this it would bypass RLS on `atletas` for anyone (Supabase
+-- Security Advisor caught this live, Session 56: PUBLIC/anon could call it).
+revoke execute on function recompute_atleta_stats(bigint) from public, anon, authenticated;
+grant execute on function recompute_atleta_stats(bigint) to service_role;
 
 -- ----------------------------------------------------------------------------
 -- profiles (account-level approval gate, 1:1 with auth.users)
@@ -332,7 +341,7 @@ $$;
 -- atletas (unified athlete dossier)
 -- ----------------------------------------------------------------------------
 create table if not exists atletas (
-  bid bigint primary key,
+  fb_id bigint primary key,
   fifa_id text unique,
   name text not null,
   apelido text,                          -- nome popular
@@ -536,7 +545,7 @@ where t.federacao_id is null and f.sigla = t.federation;
 -- ----------------------------------------------------------------------------
 create table if not exists conquistas (
   id uuid primary key default gen_random_uuid(),
-  bid_atleta bigint not null references atletas (bid) on delete cascade,
+  fb_id_atleta bigint not null references atletas (fb_id) on delete cascade,
   tipo text not null check (tipo in ('titulo', 'premio')),
   descricao text not null,
   ano smallint,
@@ -544,14 +553,14 @@ create table if not exists conquistas (
   created_at timestamptz not null default now()
 );
 
-create index if not exists idx_conquistas_bid on conquistas (bid_atleta);
+create index if not exists idx_conquistas_fb_id on conquistas (fb_id_atleta);
 
 -- ----------------------------------------------------------------------------
 -- historico_clubes (career club history — previous clubs beyond current_club_id)
 -- ----------------------------------------------------------------------------
 create table if not exists historico_clubes (
   id uuid primary key default gen_random_uuid(),
-  bid_atleta bigint not null references atletas (bid) on delete cascade,
+  fb_id_atleta bigint not null references atletas (fb_id) on delete cascade,
   clube_id uuid references clubes (id) on delete set null, -- null if the club isn't a base seed profile
   clube_nome text not null,                                -- denormalized (previous clubs may not exist as `clubes` rows)
   ano_inicio smallint,
@@ -559,7 +568,7 @@ create table if not exists historico_clubes (
   created_at timestamptz not null default now()
 );
 
-create index if not exists idx_historico_bid on historico_clubes (bid_atleta);
+create index if not exists idx_historico_fb_id on historico_clubes (fb_id_atleta);
 
 -- ----------------------------------------------------------------------------
 -- scraping_logs (ingestion audit trail)
@@ -586,7 +595,7 @@ create table if not exists scraping_jobs (
   id uuid primary key default gen_random_uuid(),
   source text not null,                          -- 'CBF', 'FPF', 'FERJ', ...
   job_type text not null,                        -- 'sumula' | 'registry' | 'profile'
-  ref text not null,                             -- stable identifier (código/edicaoId/bid)
+  ref text not null,                             -- stable identifier (código/edicaoId/fb_id)
   status text not null default 'pending' check (status in ('pending', 'done', 'failed')),
   attempts integer not null default 0,
   last_error text,
@@ -605,10 +614,10 @@ create or replace trigger trg_scraping_jobs_updated_at
   for each row execute function set_updated_at();
 
 -- ----------------------------------------------------------------------------
--- atleta_fontes (Fase 6.4 — multi-source identity map; single profile per BID)
+-- atleta_fontes (Fase 6.4 — multi-source identity map; single profile per fb_id)
 -- ----------------------------------------------------------------------------
 create table if not exists atleta_fontes (
-  bid bigint not null references atletas (bid) on delete cascade,
+  fb_id bigint not null references atletas (fb_id) on delete cascade,
   fonte text not null,                           -- 'cbf', 'fpf', 'ferj', ...
   id_externo text not null,                      -- athlete id in that source
   confidence text not null default 'exact' check (confidence in ('exact', 'matched', 'manual')),
@@ -617,7 +626,7 @@ create table if not exists atleta_fontes (
   primary key (fonte, id_externo)
 );
 
-create index if not exists idx_atleta_fontes_bid on atleta_fontes (bid);
+create index if not exists idx_atleta_fontes_fb_id on atleta_fontes (fb_id);
 
 -- ----------------------------------------------------------------------------
 -- partidas_sumula (one row per match, parent of atuacoes_sumula)
@@ -649,7 +658,7 @@ create index if not exists idx_partidas_away on partidas_sumula (away_club_id);
 create table if not exists atuacoes_sumula (
   id uuid primary key default gen_random_uuid(),
   partida_id uuid not null references partidas_sumula (id) on delete cascade,
-  bid_atleta bigint not null references atletas (bid) on delete cascade,
+  fb_id_atleta bigint not null references atletas (fb_id) on delete cascade,
   player_category text not null references categoria_ordem (categoria),
   minutes_played smallint not null default 0 check (minutes_played between 0 and 130),
   goals smallint not null default 0 check (goals >= 0),
@@ -664,10 +673,10 @@ create table if not exists atuacoes_sumula (
   -- ingestion time; nullable since it's only backfilled going forward.
   club_id uuid references clubes (id) on delete set null,
   created_at timestamptz not null default now(),
-  unique (partida_id, bid_atleta)
+  unique (partida_id, fb_id_atleta)
 );
 
-create index if not exists idx_atuacoes_bid on atuacoes_sumula (bid_atleta);
+create index if not exists idx_atuacoes_fb_id on atuacoes_sumula (fb_id_atleta);
 create index if not exists idx_atuacoes_club on atuacoes_sumula (club_id);
 create index if not exists idx_atuacoes_partida on atuacoes_sumula (partida_id);
 
@@ -691,15 +700,15 @@ create index if not exists idx_atuacao_cartoes_atuacao on atuacao_cartoes (atuac
 -- own header comment for the full rationale).
 create table if not exists atleta_duplicate_candidates (
   id uuid primary key default gen_random_uuid(),
-  bid_a bigint not null references atletas (bid) on delete cascade,
-  bid_b bigint not null references atletas (bid) on delete cascade,
+  fb_id_a bigint not null references atletas (fb_id) on delete cascade,
+  fb_id_b bigint not null references atletas (fb_id) on delete cascade,
   tier text not null check (tier in ('forte', 'clube+nome')),
   status text not null default 'pending' check (status in ('pending', 'merged', 'dismissed')),
   detected_at timestamptz not null default now(),
   resolved_at timestamptz,
   resolved_by uuid references profiles (id) on delete set null,
-  constraint atleta_duplicate_candidates_distinct check (bid_a <> bid_b),
-  unique (bid_a, bid_b)
+  constraint atleta_duplicate_candidates_distinct check (fb_id_a <> fb_id_b),
+  unique (fb_id_a, fb_id_b)
 );
 
 create index if not exists idx_atleta_dup_candidates_status on atleta_duplicate_candidates (status);
@@ -710,15 +719,15 @@ create index if not exists idx_atleta_dup_candidates_status on atleta_duplicate_
 create table if not exists favoritos (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users (id) on delete cascade,
-  bid_atleta bigint not null references atletas (bid) on delete cascade,
+  fb_id_atleta bigint not null references atletas (fb_id) on delete cascade,
   nota smallint check (nota between 0 and 100),  -- user's rating, best->worst
   notas text,                                    -- free-text scouting note
   created_at timestamptz not null default now(),
-  unique (user_id, bid_atleta)
+  unique (user_id, fb_id_atleta)
 );
 
 create index if not exists idx_favoritos_user on favoritos (user_id);
-create index if not exists idx_favoritos_bid on favoritos (bid_atleta);
+create index if not exists idx_favoritos_fb_id on favoritos (fb_id_atleta);
 
 -- ----------------------------------------------------------------------------
 -- prancheta_tatica (tactical board) + slots
@@ -744,12 +753,12 @@ create trigger trg_prancheta_updated_at
 create table if not exists prancheta_slots (
   id uuid primary key default gen_random_uuid(),
   prancheta_id uuid not null references prancheta_tatica (id) on delete cascade,
-  bid_atleta bigint not null references atletas (bid) on delete cascade,
+  fb_id_atleta bigint not null references atletas (fb_id) on delete cascade,
   slot_type text not null check (slot_type in ('starter', 'bench')),
   position_code text,                    -- 'GK','RB',... for starters; null for bench
   slot_order smallint not null default 0,
   created_at timestamptz not null default now(),
-  unique (prancheta_id, bid_atleta),
+  unique (prancheta_id, fb_id_atleta),
   unique (prancheta_id, slot_type, slot_order),
   constraint prancheta_slot_position_valid check (
     (slot_type = 'starter'
@@ -766,7 +775,7 @@ create index if not exists idx_prancheta_slots_board on prancheta_slots (pranche
 create table if not exists solicitacoes_reivindicacao (
   id uuid primary key default gen_random_uuid(),
   tipo text not null check (tipo in ('atleta', 'clube')),
-  bid_atleta bigint references atletas (bid) on delete cascade,
+  fb_id_atleta bigint references atletas (fb_id) on delete cascade,
   clube_id uuid references clubes (id) on delete cascade,
   requested_by uuid not null references auth.users (id) on delete cascade,
   documento_url text,
@@ -776,8 +785,8 @@ create table if not exists solicitacoes_reivindicacao (
   reviewed_at timestamptz,
   created_at timestamptz not null default now(),
   constraint reivindicacao_target_matches_tipo check (
-    (tipo = 'atleta' and bid_atleta is not null and clube_id is null)
-    or (tipo = 'clube' and clube_id is not null and bid_atleta is null)
+    (tipo = 'atleta' and fb_id_atleta is not null and clube_id is null)
+    or (tipo = 'clube' and clube_id is not null and fb_id_atleta is null)
   )
 );
 
@@ -794,7 +803,7 @@ create unique index if not exists idx_clubes_claimed_user
   on clubes (reivindicado_por)
   where reivindicado_por is not null;
 create unique index if not exists idx_reivindicacao_atleta_pending_target
-  on solicitacoes_reivindicacao (bid_atleta)
+  on solicitacoes_reivindicacao (fb_id_atleta)
   where tipo = 'atleta' and status = 'pending';
 
 alter table solicitacoes_reivindicacao
@@ -914,7 +923,7 @@ begin
   new.status := 'pending'; new.reviewed_by := null; new.reviewed_at := null;
   select a.id into v_agent_id from agentes a join profiles p on p.id=a.user_id where a.user_id=new.requested_by and a.verified_status='verified' and p.role='agent' and p.account_status='approved';
   if v_agent_id is null then raise exception 'only approved verified agents may claim athletes'; end if;
-  select at.claim_status,at.agent_id into v_status,v_current_agent from atletas at where at.bid=new.bid_atleta for update;
+  select at.claim_status,at.agent_id into v_status,v_current_agent from atletas at where at.fb_id=new.fb_id_atleta for update;
   if not found then raise exception 'athlete not found'; end if;
   if v_status is distinct from 'unclaimed' or v_current_agent is not null then raise exception 'athlete is not available for claim'; end if;
   return new;
@@ -924,7 +933,7 @@ create or replace function mark_athlete_claim_pending()
 returns trigger language plpgsql security definer set search_path = public as $$
 begin
   if new.tipo='atleta' then
-    update atletas set claim_status='pending' where bid=new.bid_atleta and claim_status='unclaimed' and agent_id is null;
+    update atletas set claim_status='pending' where fb_id=new.fb_id_atleta and claim_status='unclaimed' and agent_id is null;
     if not found then raise exception 'athlete claim is no longer available'; end if;
   end if;
   return new;
@@ -938,15 +947,15 @@ begin
     if new.status='approved' then
       select a.id into v_agent_id from agentes a join profiles p on p.id=a.user_id where a.user_id=new.requested_by and a.verified_status='verified' and p.role='agent' and p.account_status='approved';
       if v_agent_id is null then raise exception 'claiming agent is no longer eligible'; end if;
-      update atletas set agent_id=v_agent_id,claim_status='claimed' where bid=new.bid_atleta and claim_status='pending' and agent_id is null;
+      update atletas set agent_id=v_agent_id,claim_status='claimed' where fb_id=new.fb_id_atleta and claim_status='pending' and agent_id is null;
       if not found then raise exception 'athlete claim is no longer pending'; end if;
     elsif new.status='rejected' then
-      update atletas set agent_id=null,claim_status='unclaimed' where bid=new.bid_atleta and claim_status='pending' and agent_id is null;
+      update atletas set agent_id=null,claim_status='unclaimed' where fb_id=new.fb_id_atleta and claim_status='pending' and agent_id is null;
       if not found then raise exception 'athlete claim is no longer pending'; end if;
     end if;
     return new;
   end if;
-  if tg_op='DELETE' and old.tipo='atleta' and old.status='pending' then update atletas set agent_id=null,claim_status='unclaimed' where bid=old.bid_atleta and claim_status='pending' and agent_id is null; return old; end if;
+  if tg_op='DELETE' and old.tipo='atleta' and old.status='pending' then update atletas set agent_id=null,claim_status='unclaimed' where fb_id=old.fb_id_atleta and claim_status='pending' and agent_id is null; return old; end if;
   return coalesce(new,old);
 end; $$;
 
@@ -956,7 +965,7 @@ begin
   if private.is_admin() or auth.role()='service_role' then return new; end if;
   if pg_trigger_depth()>1 and old.claim_status='unclaimed' and old.agent_id is null and new.claim_status='pending' and new.agent_id is null
     and (to_jsonb(new)-array['claim_status','updated_at']::text[]) is not distinct from (to_jsonb(old)-array['claim_status','updated_at']::text[])
-    and exists (select 1 from solicitacoes_reivindicacao r where r.tipo='atleta' and r.bid_atleta=old.bid and r.requested_by=(select auth.uid()) and r.status='pending') then return new; end if;
+    and exists (select 1 from solicitacoes_reivindicacao r where r.tipo='atleta' and r.fb_id_atleta=old.fb_id and r.requested_by=(select auth.uid()) and r.status='pending') then return new; end if;
   if exists (select 1 from agentes a where a.id=old.agent_id and a.user_id=(select auth.uid()) and a.verified_status='verified' and old.claim_status='claimed') then
     if (to_jsonb(new)-array['apelido','dominant_foot','height_cm','weight_kg','posicao_secundaria','youtube_video_url','updated_at']::text[]) is distinct from (to_jsonb(old)-array['apelido','dominant_foot','height_cm','weight_kg','posicao_secundaria','youtube_video_url','updated_at']::text[]) then raise exception 'agents may only edit apelido, dominant_foot, height_cm, weight_kg, posicao_secundaria and youtube_video_url'; end if;
     return new;
@@ -988,7 +997,7 @@ revoke execute on function sync_athlete_claim_state() from public, anon, authent
 -- ----------------------------------------------------------------------------
 create table if not exists solicitacoes_correcao (
   id uuid primary key default gen_random_uuid(),
-  bid_atleta bigint not null references atletas (bid) on delete cascade,
+  fb_id_atleta bigint not null references atletas (fb_id) on delete cascade,
   requested_by uuid not null references auth.users (id) on delete cascade,
   field_name text not null,
   current_value text,
@@ -1001,14 +1010,14 @@ create table if not exists solicitacoes_correcao (
   created_at timestamptz not null default now()
   ,constraint solicitacoes_reason_required check (reason is not null and btrim(reason) <> '')
   ,constraint solicitacoes_field_allowed check (field_name in (
-    'bid', 'fifa_id', 'name', 'birth_date', 'nacionalidade', 'tem_passaporte',
+    'fifa_id', 'name', 'birth_date', 'nacionalidade', 'tem_passaporte',
     'passaporte', 'main_position', 'inicio_carreira', 'contract_end_date',
     'current_club_id', 'current_category', 'experiencia_internacional',
     'jogos_suspenso', 'performance_data'
   ))
 );
 
-create index if not exists idx_solicitacoes_bid on solicitacoes_correcao (bid_atleta);
+create index if not exists idx_solicitacoes_fb_id on solicitacoes_correcao (fb_id_atleta);
 create index if not exists idx_solicitacoes_requester on solicitacoes_correcao (requested_by);
 create index if not exists idx_solicitacoes_status on solicitacoes_correcao (status);
 
@@ -1021,7 +1030,7 @@ as $$
 declare
   v_atleta public.atletas%rowtype;
 begin
-  select * into v_atleta from public.atletas where bid = new.bid_atleta;
+  select * into v_atleta from public.atletas where fb_id = new.fb_id_atleta;
   if not found then raise exception 'athlete not found'; end if;
   new.current_value := case
     when new.field_name = 'performance_data' then null
@@ -1249,7 +1258,7 @@ create policy prancheta_slots_owner_insert on prancheta_slots
       )
       and exists (
         select 1 from favoritos f
-        where f.user_id = (select auth.uid()) and f.bid_atleta = prancheta_slots.bid_atleta
+        where f.user_id = (select auth.uid()) and f.fb_id_atleta = prancheta_slots.fb_id_atleta
       )
     )
   );
@@ -1273,7 +1282,7 @@ create policy prancheta_slots_owner_update on prancheta_slots
       )
       and exists (
         select 1 from favoritos f
-        where f.user_id = (select auth.uid()) and f.bid_atleta = prancheta_slots.bid_atleta
+        where f.user_id = (select auth.uid()) and f.fb_id_atleta = prancheta_slots.fb_id_atleta
       )
     )
   );
@@ -1300,7 +1309,7 @@ begin
   using prancheta_tatica pt
   where ps.prancheta_id = pt.id
     and pt.user_id = old.user_id
-    and ps.bid_atleta = old.bid_atleta;
+    and ps.fb_id_atleta = old.fb_id_atleta;
   return old;
 end;
 $$;
@@ -1342,8 +1351,8 @@ begin
   end if;
   if exists (
     select 1 from jsonb_to_recordset(p_slots)
-      as x(bid_atleta bigint, position_code text, slot_order smallint)
-    where x.bid_atleta is null
+      as x(fb_id_atleta bigint, position_code text, slot_order smallint)
+    where x.fb_id_atleta is null
       or x.position_code not in ('GK','CB','LB','RB','DM','CM','AM','LW','RW','ST')
       or x.slot_order not between 0 and 10
   ) then
@@ -1351,7 +1360,7 @@ begin
   end if;
   if exists (
     select 1 from jsonb_to_recordset(p_slots)
-      as x(bid_atleta bigint, position_code text, slot_order smallint)
+      as x(fb_id_atleta bigint, position_code text, slot_order smallint)
     where x.position_code <> case p_formation
       when '4-3-3' then (array['GK','RB','CB','CB','LB','DM','CM','CM','RW','ST','LW'])[x.slot_order + 1]
       when '4-4-2' then (array['GK','RB','CB','CB','LB','RW','CM','CM','LW','ST','ST'])[x.slot_order + 1]
@@ -1362,22 +1371,22 @@ begin
     raise exception 'slot position does not match formation';
   end if;
   if (
-    select count(distinct x.bid_atleta) from jsonb_to_recordset(p_slots)
-      as x(bid_atleta bigint, position_code text, slot_order smallint)
+    select count(distinct x.fb_id_atleta) from jsonb_to_recordset(p_slots)
+      as x(fb_id_atleta bigint, position_code text, slot_order smallint)
   ) <> v_count then
     raise exception 'an athlete cannot occupy multiple slots';
   end if;
   if (
     select count(distinct x.slot_order) from jsonb_to_recordset(p_slots)
-      as x(bid_atleta bigint, position_code text, slot_order smallint)
+      as x(fb_id_atleta bigint, position_code text, slot_order smallint)
   ) <> v_count then
     raise exception 'slot_order must be unique';
   end if;
   if exists (
     select 1 from jsonb_to_recordset(p_slots)
-      as x(bid_atleta bigint, position_code text, slot_order smallint)
+      as x(fb_id_atleta bigint, position_code text, slot_order smallint)
     where not exists (
-      select 1 from favoritos f where f.user_id = v_user_id and f.bid_atleta = x.bid_atleta
+      select 1 from favoritos f where f.user_id = v_user_id and f.fb_id_atleta = x.fb_id_atleta
     )
   ) then
     raise exception 'only favorited athletes may be selected';
@@ -1385,16 +1394,16 @@ begin
   delete from prancheta_slots where prancheta_id = p_board_id;
   update prancheta_tatica set formation = p_formation, lineup_initialized = true
   where id = p_board_id and user_id = v_user_id;
-  insert into prancheta_slots (prancheta_id, bid_atleta, slot_type, position_code, slot_order)
-  select p_board_id, x.bid_atleta, 'starter', x.position_code, x.slot_order
+  insert into prancheta_slots (prancheta_id, fb_id_atleta, slot_type, position_code, slot_order)
+  select p_board_id, x.fb_id_atleta, 'starter', x.position_code, x.slot_order
   from jsonb_to_recordset(p_slots)
-    as x(bid_atleta bigint, position_code text, slot_order smallint);
+    as x(fb_id_atleta bigint, position_code text, slot_order smallint);
 end;
 $$;
 revoke all on function replace_prancheta_slots(uuid, text, jsonb) from public, anon;
 grant execute on function replace_prancheta_slots(uuid, text, jsonb) to authenticated, service_role;
 
-create or replace function remove_favorite_and_slot(p_bid bigint)
+create or replace function remove_favorite_and_slot(p_fb_id bigint)
 returns void
 language plpgsql
 security invoker
@@ -1408,8 +1417,8 @@ begin
   end if;
   delete from prancheta_slots ps
   using prancheta_tatica pt
-  where ps.prancheta_id = pt.id and pt.user_id = v_user_id and ps.bid_atleta = p_bid;
-  delete from favoritos where user_id = v_user_id and bid_atleta = p_bid;
+  where ps.prancheta_id = pt.id and pt.user_id = v_user_id and ps.fb_id_atleta = p_fb_id;
+  delete from favoritos where user_id = v_user_id and fb_id_atleta = p_fb_id;
 end;
 $$;
 revoke all on function remove_favorite_and_slot(bigint) from public, anon;
@@ -1426,7 +1435,7 @@ create policy reivindicacao_insert_own on solicitacoes_reivindicacao
     and reviewed_at is null
     and (
       (
-        tipo = 'clube' and bid_atleta is null and clube_id is not null
+        tipo = 'clube' and fb_id_atleta is null and clube_id is not null
         and exists (
           select 1 from profiles p where p.id = (select auth.uid())
             and p.role = 'club' and p.account_status = 'approved'
@@ -1440,14 +1449,14 @@ create policy reivindicacao_insert_own on solicitacoes_reivindicacao
         )
       )
       or (
-        tipo = 'atleta' and bid_atleta is not null and clube_id is null
+        tipo = 'atleta' and fb_id_atleta is not null and clube_id is null
         and exists (
           select 1 from agentes a join profiles p on p.id = a.user_id
           where a.user_id = (select auth.uid()) and a.verified_status = 'verified'
             and p.role = 'agent' and p.account_status = 'approved'
         )
         and exists (
-          select 1 from atletas at where at.bid = solicitacoes_reivindicacao.bid_atleta
+          select 1 from atletas at where at.fb_id = solicitacoes_reivindicacao.fb_id_atleta
             and at.agent_id is null and at.claim_status in ('unclaimed', 'pending')
         )
       )
@@ -1470,7 +1479,7 @@ create policy solicitacoes_insert_own on solicitacoes_correcao
       join profiles p on p.id = a.user_id
       where a.user_id = (select auth.uid())
         and a.verified_status = 'verified'
-        and at.bid = solicitacoes_correcao.bid_atleta
+        and at.fb_id = solicitacoes_correcao.fb_id_atleta
         and at.claim_status = 'claimed'
         and p.role = 'agent'
         and p.account_status = 'approved'
@@ -1487,7 +1496,7 @@ create policy solicitacoes_delete_admin on solicitacoes_correcao
 create or replace view view_atleta_resumo
 with (security_invoker = true) as
 select
-  a.bid,
+  a.fb_id,
   a.fifa_id,
   a.name,
   a.apelido,
@@ -1705,7 +1714,7 @@ create index if not exists idx_club_torneios_category on public.club_categoria_t
 create table if not exists public.club_elenco_solicitacoes (
   id uuid primary key default gen_random_uuid(),
   club_id uuid not null references public.clubes(id) on delete restrict,
-  bid_atleta bigint references public.atletas(bid) on delete restrict,
+  fb_id_atleta bigint references public.atletas(fb_id) on delete restrict,
   informed_bid text,
   informed_name text,
   action text not null check (action in ('add','remove','change_category','register_missing_bid')),
@@ -1722,8 +1731,8 @@ create table if not exists public.club_elenco_solicitacoes (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   constraint club_roster_target_valid check (
-    (action = 'register_missing_bid' and bid_atleta is null and informed_bid is not null and informed_name is not null and proposed_category is not null)
-    or (action <> 'register_missing_bid' and bid_atleta is not null)
+    (action = 'register_missing_bid' and fb_id_atleta is null and informed_bid is not null and informed_name is not null and proposed_category is not null)
+    or (action <> 'register_missing_bid' and fb_id_atleta is not null)
   ),
   constraint club_roster_category_valid check (
     (action in ('add','change_category','register_missing_bid') and proposed_category is not null)
@@ -1731,8 +1740,8 @@ create table if not exists public.club_elenco_solicitacoes (
   )
 );
 create index if not exists idx_club_roster_requests_club on public.club_elenco_solicitacoes(club_id, status, created_at desc);
-create unique index if not exists idx_club_roster_pending_existing on public.club_elenco_solicitacoes(club_id, bid_atleta, action)
-where status = 'pending' and bid_atleta is not null;
+create unique index if not exists idx_club_roster_pending_existing on public.club_elenco_solicitacoes(club_id, fb_id_atleta, action)
+where status = 'pending' and fb_id_atleta is not null;
 create unique index if not exists idx_club_roster_pending_missing on public.club_elenco_solicitacoes(club_id, informed_bid)
 where status = 'pending' and action = 'register_missing_bid';
 
@@ -1809,8 +1818,8 @@ begin
   if v_club_id is null or v_profile_role <> 'club' or v_profile_status <> 'approved' then raise exception 'claimed club required'; end if;
   new.club_id := v_club_id; new.requested_by := auth.uid(); new.status := 'pending';
   new.reviewed_by := null; new.reviewed_at := null; new.review_note := null;
-  if new.bid_atleta is not null then
-    select current_club_id, current_category into new.current_club_id_snapshot, new.current_category_snapshot from public.atletas where bid = new.bid_atleta;
+  if new.fb_id_atleta is not null then
+    select current_club_id, current_category into new.current_club_id_snapshot, new.current_category_snapshot from public.atletas where fb_id = new.fb_id_atleta;
     if not found then raise exception 'athlete not found'; end if;
   else
     new.current_club_id_snapshot := null; new.current_category_snapshot := null;
@@ -1896,7 +1905,7 @@ comment on table public.club_elenco_solicitacoes is 'Club-declared roster reques
 -- ----------------------------------------------------------------------------
 create table if not exists representacao_transferencias (
   id uuid primary key default gen_random_uuid(),
-  bid_atleta bigint not null references atletas (bid) on delete cascade,
+  fb_id_atleta bigint not null references atletas (fb_id) on delete cascade,
   agente_anterior_id uuid references agentes (id) on delete set null,
   agente_novo_id uuid not null references agentes (id) on delete restrict,
   justificativa text not null check (char_length(justificativa) between 20 and 2000),
@@ -1905,7 +1914,7 @@ create table if not exists representacao_transferencias (
   created_at timestamptz not null default now()
 );
 
-create index if not exists idx_representacao_transferencias_bid on representacao_transferencias (bid_atleta);
+create index if not exists idx_representacao_transferencias_fb_id on representacao_transferencias (fb_id_atleta);
 create index if not exists idx_representacao_transferencias_created on representacao_transferencias (created_at desc);
 
 alter table representacao_transferencias enable row level security;
@@ -1918,7 +1927,7 @@ create policy representacao_transferencias_select_admin on representacao_transfe
 -- update/delete RLS policy exists for authenticated/anon — the table is
 -- append-only, written exclusively by this SECURITY DEFINER function.
 create or replace function admin_transferir_representacao(
-  p_bid bigint,
+  p_fb_id bigint,
   p_novo_agente_id uuid,
   p_justificativa text,
   p_comprovante_url text
@@ -1945,10 +1954,10 @@ begin
   end if;
 
   select agent_id, claim_status into v_anterior, v_status
-  from atletas where bid = p_bid for update;
-  if not found then raise exception 'athlete % not found', p_bid; end if;
+  from atletas where fb_id = p_fb_id for update;
+  if not found then raise exception 'athlete % not found', p_fb_id; end if;
   if v_status <> 'claimed' or v_anterior is null then
-    raise exception 'athlete % has no current agent to transfer representation from', p_bid;
+    raise exception 'athlete % has no current agent to transfer representation from', p_fb_id;
   end if;
   if v_anterior = p_novo_agente_id then
     raise exception 'the new agent must differ from the current agent';
@@ -1966,12 +1975,12 @@ begin
     raise exception 'new agent must be an approved, verified agent';
   end if;
 
-  update atletas set agent_id = p_novo_agente_id, claim_status = 'claimed' where bid = p_bid;
+  update atletas set agent_id = p_novo_agente_id, claim_status = 'claimed' where fb_id = p_fb_id;
 
   insert into representacao_transferencias
-    (bid_atleta, agente_anterior_id, agente_novo_id, justificativa, comprovante_url, admin_id)
+    (fb_id_atleta, agente_anterior_id, agente_novo_id, justificativa, comprovante_url, admin_id)
   values
-    (p_bid, v_anterior, p_novo_agente_id, p_justificativa, p_comprovante_url, auth.uid())
+    (p_fb_id, v_anterior, p_novo_agente_id, p_justificativa, p_comprovante_url, auth.uid())
   returning * into v_result;
 
   return v_result;

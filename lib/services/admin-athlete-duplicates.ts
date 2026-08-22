@@ -4,7 +4,7 @@ export type DuplicateCandidateStatus = "pending" | "merged" | "dismissed";
 export type DuplicateCandidateTier = "forte" | "clube+nome";
 
 export interface DuplicateCandidateAthlete {
-  bid: number;
+  fbId: number;
   name: string;
   birthDate: string | null;
   currentCategory: string | null;
@@ -26,7 +26,7 @@ function one<T>(rel: T | T[] | null): T | null {
 }
 
 function mapAthlete(a: {
-  bid: number;
+  fb_id: number;
   name: string;
   birth_date: string | null;
   current_category: string | null;
@@ -34,7 +34,7 @@ function mapAthlete(a: {
   clubes: unknown;
 }): DuplicateCandidateAthlete {
   return {
-    bid: a.bid,
+    fbId: a.fb_id,
     name: a.name,
     birthDate: a.birth_date,
     currentCategory: a.current_category,
@@ -48,24 +48,24 @@ function mapAthlete(a: {
 export async function loadDuplicateCandidates(client: SupabaseClient): Promise<AdminDuplicateCandidate[]> {
   const { data, error } = await client
     .from("atleta_duplicate_candidates")
-    .select("id, bid_a, bid_b, tier, status, detected_at")
+    .select("id, fb_id_a, fb_id_b, tier, status, detected_at")
     .eq("status", "pending")
     .order("detected_at", { ascending: false });
   if (error) throw error;
   if (!data || data.length === 0) return [];
 
-  const bids = [...new Set(data.flatMap((r) => [r.bid_a, r.bid_b]))];
+  const bids = [...new Set(data.flatMap((r) => [r.fb_id_a, r.fb_id_b]))];
   const { data: athletes, error: athErr } = await client
     .from("atletas")
-    .select("bid, name, birth_date, current_category, total_matches, clubes:current_club_id(name)")
-    .in("bid", bids);
+    .select("fb_id, name, birth_date, current_category, total_matches, clubes:current_club_id(name)")
+    .in("fb_id", bids);
   if (athErr) throw athErr;
-  const byBid = new Map((athletes ?? []).map((a) => [a.bid as number, mapAthlete(a as never)]));
+  const byBid = new Map((athletes ?? []).map((a) => [a.fb_id as number, mapAthlete(a as never)]));
 
   return data
     .map((r) => {
-      const a = byBid.get(r.bid_a as number);
-      const b = byBid.get(r.bid_b as number);
+      const a = byBid.get(r.fb_id_a as number);
+      const b = byBid.get(r.fb_id_b as number);
       if (!a || !b) return null; // one side got deleted/merged elsewhere since detection
       return {
         id: r.id as string,

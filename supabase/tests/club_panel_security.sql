@@ -20,7 +20,7 @@ insert into public.clubes (id,name,source_key,state,federacao,reivindicado_por,c
 ('00000000-0000-4000-8000-000000004401','Panel Security Owner','test:panel-owner','SP','FPF','00000000-0000-4000-8000-000000000441','claimed'),
 ('00000000-0000-4000-8000-000000004402','Panel Security Other','test:panel-other','RJ','FERJ','00000000-0000-4000-8000-000000000442','claimed'),
 ('00000000-0000-4000-8000-000000004403','Panel Claimable','test:panel-claim','MG','FMF',null,'unclaimed');
-insert into public.atletas (bid,name,birth_date,main_position,current_club_id,current_category) values
+insert into public.atletas (fb_id,name,birth_date,main_position,current_club_id,current_category) values
 (9191919441,'Panel Security Athlete','2009-01-01','CM','00000000-0000-4000-8000-000000004402','SUB-17');
 
 -- Ingestion/admin seeds a category + tournament for the owner club (clubs cannot).
@@ -39,7 +39,7 @@ insert into public.club_correction_requests (club_id,field_name,suggested_value,
 values ('00000000-0000-4000-8000-000000004401','name','Panel FC Oficial','Documento institucional demonstra o nome oficial correto e completo.','00000000-0000-4000-8000-000000000441');
 insert into public.club_correction_requests (club_id,field_name,suggested_value,reason,requested_by)
 values ('00000000-0000-4000-8000-000000004401','crest','https://example.org/escudo-atualizado.webp','Temos uma versao oficial atualizada do escudo para analise.','00000000-0000-4000-8000-000000000441');
-insert into public.favoritos (user_id,bid_atleta,nota,notas) values ('00000000-0000-4000-8000-000000000441',9191919441,80,'Privado');
+insert into public.favoritos (user_id,fb_id_atleta,nota,notas) values ('00000000-0000-4000-8000-000000000441',9191919441,80,'Privado');
 
 do $$ begin
   -- Owner can READ the ingested category (read-only panel).
@@ -51,7 +51,7 @@ do $$ begin
   -- Owner may NOT declare a category (write is admin/service_role only).
   begin insert into public.club_categorias (club_id,category,status,display_order,declared_by) values ('00000000-0000-4000-8000-000000004401','SUB-15','active',5,'00000000-0000-4000-8000-000000000441'); raise exception 'SECURITY TEST FAILED: owner declared a category'; exception when others then if sqlerrm like 'SECURITY TEST FAILED:%' then raise; end if; end;
   -- Owner may NOT file a roster request.
-  begin insert into public.club_elenco_solicitacoes (club_id,bid_atleta,action,proposed_category,justification,requested_by) values ('00000000-0000-4000-8000-000000004401',9191919441,'add','SUB-17','Documentacao oficial apresentada para analise do vinculo institucional.','00000000-0000-4000-8000-000000000441'); raise exception 'SECURITY TEST FAILED: owner filed a roster request'; exception when others then if sqlerrm like 'SECURITY TEST FAILED:%' then raise; end if; end;
+  begin insert into public.club_elenco_solicitacoes (club_id,fb_id_atleta,action,proposed_category,justification,requested_by) values ('00000000-0000-4000-8000-000000004401',9191919441,'add','SUB-17','Documentacao oficial apresentada para analise do vinculo institucional.','00000000-0000-4000-8000-000000000441'); raise exception 'SECURITY TEST FAILED: owner filed a roster request'; exception when others then if sqlerrm like 'SECURITY TEST FAILED:%' then raise; end if; end;
   -- Owner may NOT change the official name (guard trigger raises).
   begin update public.clubes set name='Hostile rename' where id='00000000-0000-4000-8000-000000004401'; raise exception 'SECURITY TEST FAILED: owner changed official name'; exception when others then if sqlerrm like 'SECURITY TEST FAILED:%' then raise; end if; end;
 end $$;

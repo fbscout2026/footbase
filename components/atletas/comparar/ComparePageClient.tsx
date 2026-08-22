@@ -12,7 +12,7 @@ import { serializeComparisonBids } from "@/lib/atleta-comparison";
 export function ComparePageClient({ initialBids, atletas }: { initialBids: number[]; atletas: AtletaRecord[] }) {
   const { t } = useT();
   const router = useRouter();
-  const namesByBid = Object.fromEntries(atletas.map((a) => [a.bid, a.name]));
+  const namesByBid = Object.fromEntries(atletas.map((a) => [a.fbId, a.name]));
 
   function updateBids(bids: number[]) {
     const serialized = serializeComparisonBids(bids);

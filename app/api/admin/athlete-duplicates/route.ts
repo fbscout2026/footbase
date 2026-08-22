@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
   const admin = createAdminClient();
   const { data: candidate, error: candErr } = await admin
     .from("atleta_duplicate_candidates")
-    .select("id, bid_a, bid_b, status")
+    .select("id, fb_id_a, fb_id_b, status")
     .eq("id", candidateId)
     .single();
   if (candErr || !candidate) return NextResponse.json({ error: "candidate-not-found" }, { status: 404 });
@@ -41,8 +41,8 @@ export async function POST(request: NextRequest) {
 
   // action === "merge"
   const winnerBid = Number(body?.winnerBid);
-  const loserBid = winnerBid === candidate.bid_a ? candidate.bid_b : candidate.bid_a;
-  if (winnerBid !== candidate.bid_a && winnerBid !== candidate.bid_b) {
+  const loserBid = winnerBid === candidate.fb_id_a ? candidate.fb_id_b : candidate.fb_id_a;
+  if (winnerBid !== candidate.fb_id_a && winnerBid !== candidate.fb_id_b) {
     return NextResponse.json({ error: "winnerBid must be one of the candidate's two bids" }, { status: 400 });
   }
 

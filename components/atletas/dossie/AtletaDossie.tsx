@@ -63,7 +63,7 @@ export function AtletaDossie({
             <div>
               <h1 className="text-2xl font-extrabold tracking-tight">{a.name}</h1>
               <p className="text-sm text-muted">
-                {a.apelido ? `"${a.apelido}" · ` : ""}{formatAthleteCode(a.bid)} · {a.currentClubName ?? "—"} · {a.currentCategory ?? "—"}
+                {a.apelido ? `"${a.apelido}" · ` : ""}{formatAthleteCode(a.fbId)} · {a.currentClubName ?? "—"} · {a.currentCategory ?? "—"}
               </p>
               <div className="mt-2 flex flex-wrap gap-2">
                 {a.mainPosition && <Badge tone="brand">{a.mainPosition}</Badge>}
@@ -78,12 +78,12 @@ export function AtletaDossie({
 
           <div className="text-right">
             <div className="flex flex-wrap items-center justify-end gap-2">
-              <FavoriteButton bid={a.bid} athleteName={a.name} />
-              <Button href={`/atletas/comparar?bids=${a.bid}`} variant="secondary" className="px-3 py-1.5">
+              <FavoriteButton fbId={a.fbId} athleteName={a.name} />
+              <Button href={`/atletas/comparar?bids=${a.fbId}`} variant="secondary" className="px-3 py-1.5">
                 <GitCompareArrows size={15} /> {t("compare.singleCta")}
               </Button>
             </div>
-            <AthleteClaimPanel bid={a.bid} />
+            <AthleteClaimPanel fbId={a.fbId} />
           </div>
         </div>
 

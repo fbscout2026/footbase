@@ -56,7 +56,7 @@ where user_id in (
   '00000000-0000-4000-8000-000000000412'
 );
 insert into public.atletas (
-  bid, name, birth_date, main_position, agent_id, claim_status
+  fb_id, name, birth_date, main_position, agent_id, claim_status
 ) values (
   9191919411, 'Security Athlete', '2008-01-01', 'CB',
   (select id from public.agentes where user_id = '00000000-0000-4000-8000-000000000411'),
@@ -150,7 +150,7 @@ select set_config(
 select set_config(
   'footbase.test_bid',
   coalesce((
-    select at.bid::text
+    select at.fb_id::text
     from public.agentes a
     join public.profiles p on p.id = a.user_id
     join public.atletas at on at.agent_id = a.id
@@ -188,14 +188,14 @@ begin
 
   update public.atletas
   set apelido = left(coalesce(apelido, ''), 200) || ' [security test]'
-  where bid = v_bid;
+  where fb_id = v_bid;
   get diagnostics v_rows = row_count;
   if v_rows <> 1 then
     raise exception 'SECURITY TEST FAILED: one of the six allowlisted athlete fields was denied';
   end if;
 
   begin
-    update public.atletas set created_at = created_at + interval '1 second' where bid = v_bid;
+    update public.atletas set created_at = created_at + interval '1 second' where fb_id = v_bid;
     raise exception 'SECURITY TEST FAILED: agent changed immutable athlete audit data';
   exception
     when others then
@@ -205,9 +205,9 @@ begin
       end if;
   end;
 
-  select name into v_expected from public.atletas where bid = v_bid;
+  select name into v_expected from public.atletas where fb_id = v_bid;
   insert into public.solicitacoes_correcao (
-    bid_atleta, requested_by, field_name, current_value, suggested_value, reason
+    fb_id_atleta, requested_by, field_name, current_value, suggested_value, reason
   ) values (
     v_bid, v_user, 'name', 'spoofed value', 'Security test suggestion', 'Security integration test'
   ) returning id, current_value into v_request, v_current;
@@ -258,7 +258,7 @@ begin
     raise notice 'SKIP cross-agent test: a second agent or claimed athlete is unavailable';
     return;
   end if;
-  update public.atletas set apelido = apelido where bid = v_bid;
+  update public.atletas set apelido = apelido where fb_id = v_bid;
   get diagnostics v_rows = row_count;
   if v_rows <> 0 then
     raise exception 'SECURITY TEST FAILED: another agent updated the claimed athlete';
@@ -291,7 +291,7 @@ begin
     raise notice 'SKIP club test: a club account or claimed athlete is unavailable';
     return;
   end if;
-  update public.atletas set apelido = apelido where bid = v_bid;
+  update public.atletas set apelido = apelido where fb_id = v_bid;
   get diagnostics v_rows = row_count;
   if v_rows <> 0 then
     raise exception 'SECURITY TEST FAILED: club updated an agent athlete';

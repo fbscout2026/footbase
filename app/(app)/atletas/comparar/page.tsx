@@ -14,9 +14,9 @@ export default async function CompararAtletasPage({
 
   const supabase = await createClient();
   const atletas = await loadAtletasByBids(supabase, bids).catch(() => []);
-  // Preserve the requested order/slots even if a bid didn't resolve to a real
+  // Preserve the requested order/slots even if a fbId didn't resolve to a real
   // athlete (bad query param) — drop it rather than guessing.
-  const resolvedBids = bids.filter((b) => atletas.some((a) => a.bid === b));
+  const resolvedBids = bids.filter((b) => atletas.some((a) => a.fbId === b));
 
   return <ComparePageClient initialBids={resolvedBids} atletas={atletas} />;
 }

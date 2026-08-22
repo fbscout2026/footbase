@@ -10,7 +10,7 @@ export interface AdminClaim {
   createdAt: string;
   documentoUrl: string | null;
   mensagem: string | null;
-  bidAtleta: number | null;
+  fbIdAtleta: number | null;
   athleteName: string | null;
   athleteCategory: string | null;
   clubeId: string | null;
@@ -33,7 +33,7 @@ function one<T>(rel: T | T[] | null): T | null {
 export async function loadClaims(client: SupabaseClient): Promise<AdminClaim[]> {
   const { data, error } = await client
     .from("solicitacoes_reivindicacao")
-    .select("id, tipo, bid_atleta, clube_id, requested_by, documento_url, mensagem, status, created_at, atletas(name, current_category), clubes(name, state, claim_status)")
+    .select("id, tipo, fb_id_atleta, clube_id, requested_by, documento_url, mensagem, status, created_at, atletas(name, current_category), clubes(name, state, claim_status)")
     .order("created_at", { ascending: false });
   if (error) throw error;
   return (data ?? []).map((r) => {
@@ -46,7 +46,7 @@ export async function loadClaims(client: SupabaseClient): Promise<AdminClaim[]> 
       createdAt: r.created_at as string,
       documentoUrl: r.documento_url as string | null,
       mensagem: r.mensagem as string | null,
-      bidAtleta: r.bid_atleta === null ? null : Number(r.bid_atleta),
+      fbIdAtleta: r.fb_id_atleta === null ? null : Number(r.fb_id_atleta),
       athleteName: athlete?.name ?? null,
       athleteCategory: athlete?.current_category ?? null,
       clubeId: r.clube_id as string | null,

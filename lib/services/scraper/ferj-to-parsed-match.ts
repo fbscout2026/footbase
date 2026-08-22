@@ -24,9 +24,9 @@ export async function buildParsedMatchFromFerj(admin: SupabaseClient, ferjMatch:
 
   let bidByBira = new Map<string, number>();
   if (biras.length > 0) {
-    const { data, error } = await admin.from("atleta_fontes").select("id_externo, bid").eq("fonte", "ferj").in("id_externo", biras);
+    const { data, error } = await admin.from("atleta_fontes").select("id_externo, fb_id").eq("fonte", "ferj").in("id_externo", biras);
     if (error) throw error;
-    bidByBira = new Map((data ?? []).map((r) => [String(r.id_externo), Number(r.bid)]));
+    bidByBira = new Map((data ?? []).map((r) => [String(r.id_externo), Number(r.fb_id)]));
   }
 
   const appearances: ParsedAppearance[] = [];

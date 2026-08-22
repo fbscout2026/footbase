@@ -9,7 +9,7 @@ export interface AgentProfileRecord {
 }
 
 export interface AgentAthleteRecord {
-  bid: number; fifaId: string | null; name: string; apelido: string | null; birthDate: string;
+  fbId: number; fifaId: string | null; name: string; apelido: string | null; birthDate: string;
   nationality: string; hasPassport: boolean; passport: string | null;
   mainPosition: string | null; secondaryPosition: string | null;
   dominantFoot: "left" | "right" | "both" | null; heightCm: number | null; weightKg: number | null;
@@ -19,7 +19,7 @@ export interface AgentAthleteRecord {
 }
 
 export interface CorrectionRequestRecord {
-  id: string; bid: number; field: CorrectionField; currentValue: string | null;
+  id: string; fbId: number; field: CorrectionField; currentValue: string | null;
   suggestedValue: string; reason: string; proofUrl: string | null;
   status: "pending" | "approved" | "rejected"; createdAt: string;
 }
@@ -60,10 +60,10 @@ export async function loadAgentPanel(client: SupabaseClient, userId: string): Pr
 
   const [athletesResult, correctionsResult, favoritesResult] = await Promise.all([
     client.from("atletas")
-      .select("bid,fifa_id,name,apelido,birth_date,nacionalidade,tem_passaporte,passaporte,main_position,posicao_secundaria,dominant_foot,height_cm,weight_kg,inicio_carreira,current_club_id,current_category,contract_end_date,experiencia_internacional,jogos_suspenso,youtube_video_url")
+      .select("fb_id,fifa_id,name,apelido,birth_date,nacionalidade,tem_passaporte,passaporte,main_position,posicao_secundaria,dominant_foot,height_cm,weight_kg,inicio_carreira,current_club_id,current_category,contract_end_date,experiencia_internacional,jogos_suspenso,youtube_video_url")
       .eq("agent_id", agent.id).eq("claim_status", "claimed").order("name"),
     client.from("solicitacoes_correcao")
-      .select("id,bid_atleta,field_name,current_value,suggested_value,reason,comprovante_url,status,created_at")
+      .select("id,fb_id_atleta,field_name,current_value,suggested_value,reason,comprovante_url,status,created_at")
       .eq("requested_by", userId).order("created_at", { ascending: false }),
     client.from("favoritos").select("id", { count: "exact", head: true }).eq("user_id", userId),
   ]);
@@ -72,7 +72,7 @@ export async function loadAgentPanel(client: SupabaseClient, userId: string): Pr
   if (favoritesResult.error) throw favoritesResult.error;
 
   const athletes = (athletesResult.data ?? []).map((row) => ({
-    bid: Number(row.bid), fifaId: row.fifa_id, name: row.name, apelido: row.apelido, birthDate: row.birth_date,
+    fbId: Number(row.fb_id), fifaId: row.fifa_id, name: row.name, apelido: row.apelido, birthDate: row.birth_date,
     nationality: row.nacionalidade, hasPassport: row.tem_passaporte, passport: row.passaporte,
     mainPosition: row.main_position, secondaryPosition: row.posicao_secundaria,
     dominantFoot: row.dominant_foot, heightCm: row.height_cm, weightKg: row.weight_kg,
@@ -83,7 +83,7 @@ export async function loadAgentPanel(client: SupabaseClient, userId: string): Pr
   })) as AgentAthleteRecord[];
 
   const corrections = (correctionsResult.data ?? []).map((row) => ({
-    id: row.id, bid: Number(row.bid_atleta), field: row.field_name, currentValue: row.current_value,
+    id: row.id, fbId: Number(row.fb_id_atleta), field: row.field_name, currentValue: row.current_value,
     suggestedValue: row.suggested_value, reason: row.reason, proofUrl: row.comprovante_url,
     status: row.status, createdAt: row.created_at,
   })) as CorrectionRequestRecord[];
@@ -102,23 +102,23 @@ export async function updateAgentProfile(client: SupabaseClient, id: string, inp
   if (error) throw error;
 }
 
-export async function updateClaimedAthlete(client: SupabaseClient, bid: number, input: AthleteEditInput): Promise<void> {
-  const { error } = await client.from("atletas").update(input).eq("bid", bid).select("bid").single();
+export async function updateClaimedAthlete(client: SupabaseClient, fbId: number, input: AthleteEditInput): Promise<void> {
+  const { error } = await client.from("atletas").update(input).eq("fb_id", fbId).select("fb_id").single();
   if (error) throw error;
 }
 
 export async function createCorrectionRequest(client: SupabaseClient, input: {
-  userId: string; bid: number; field: CorrectionField; currentValue: string | null;
+  userId: string; fbId: number; field: CorrectionField; currentValue: string | null;
   suggestedValue: string; reason: string; proofUrl: string | null;
 }): Promise<CorrectionRequestRecord> {
   const { data, error } = await client.from("solicitacoes_correcao").insert({
-    requested_by: input.userId, bid_atleta: input.bid, field_name: input.field,
+    requested_by: input.userId, fb_id_atleta: input.fbId, field_name: input.field,
     current_value: input.currentValue, suggested_value: input.suggestedValue,
     reason: input.reason, comprovante_url: input.proofUrl,
-  }).select("id,bid_atleta,field_name,current_value,suggested_value,reason,comprovante_url,status,created_at").single();
+  }).select("id,fb_id_atleta,field_name,current_value,suggested_value,reason,comprovante_url,status,created_at").single();
   if (error) throw error;
   return {
-    id: data.id, bid: Number(data.bid_atleta), field: data.field_name, currentValue: data.current_value,
+    id: data.id, fbId: Number(data.fb_id_atleta), field: data.field_name, currentValue: data.current_value,
     suggestedValue: data.suggested_value, reason: data.reason, proofUrl: data.comprovante_url,
     status: data.status, createdAt: data.created_at,
   } as CorrectionRequestRecord;

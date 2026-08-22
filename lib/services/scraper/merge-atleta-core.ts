@@ -4,25 +4,26 @@
 // guard, same-match-collision detection) instead of the API route reimplementing
 // them separately and risking drift.
 //
-// What "merge" means: every row across the real FKs into `atletas.bid` gets
+// What "merge" means: every row across the real FKs into `atletas.fb_id` gets
 // repointed from loserBid to winnerBid; once loserBid has zero remaining
 // references anywhere, the (now-orphaned) loser row itself is deleted. The winner's
 // own data (name, birth_date, stats, claim) is NEVER touched.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-// Every real FK into atletas.bid, mapped live off supabase/schema.sql (Session 55).
+// Every real FK into atletas.fb_id, mapped live off supabase/schema.sql (Session 55,
+// column names updated Session 56 — "FB-ID: chave suprema").
 const REFERENCING_COLUMNS: { table: string; column: string }[] = [
-  { table: "conquistas", column: "bid_atleta" },
-  { table: "historico_clubes", column: "bid_atleta" },
-  { table: "atleta_fontes", column: "bid" },
-  { table: "atuacoes_sumula", column: "bid_atleta" },
-  { table: "favoritos", column: "bid_atleta" },
-  { table: "prancheta_slots", column: "bid_atleta" },
-  { table: "solicitacoes_reivindicacao", column: "bid_atleta" },
-  { table: "solicitacoes_correcao", column: "bid_atleta" },
-  { table: "club_elenco_solicitacoes", column: "bid_atleta" },
-  { table: "representacao_transferencias", column: "bid_atleta" },
+  { table: "conquistas", column: "fb_id_atleta" },
+  { table: "historico_clubes", column: "fb_id_atleta" },
+  { table: "atleta_fontes", column: "fb_id" },
+  { table: "atuacoes_sumula", column: "fb_id_atleta" },
+  { table: "favoritos", column: "fb_id_atleta" },
+  { table: "prancheta_slots", column: "fb_id_atleta" },
+  { table: "solicitacoes_reivindicacao", column: "fb_id_atleta" },
+  { table: "solicitacoes_correcao", column: "fb_id_atleta" },
+  { table: "club_elenco_solicitacoes", column: "fb_id_atleta" },
+  { table: "representacao_transferencias", column: "fb_id_atleta" },
 ];
 
 export interface AthleteSummary {
@@ -48,9 +49,9 @@ export type MergeAtletaResult =
   | { outcome: "write-failed"; loser: AthleteSummary; winner: AthleteSummary; error: string };
 
 async function fetchAthlete(admin: SupabaseClient, bid: number): Promise<AthleteSummary> {
-  const { data, error } = await admin.from("atletas").select("bid, name, birth_date, current_category, claim_status, agent_id").eq("bid", bid).single();
+  const { data, error } = await admin.from("atletas").select("fb_id, name, birth_date, current_category, claim_status, agent_id").eq("fb_id", bid).single();
   if (error) throw new Error(`athlete ${bid} not found: ${error.message}`);
-  return { bid: data.bid, name: data.name, birthDate: data.birth_date, currentCategory: data.current_category, claimStatus: data.claim_status, agentId: data.agent_id };
+  return { bid: data.fb_id, name: data.name, birthDate: data.birth_date, currentCategory: data.current_category, claimStatus: data.claim_status, agentId: data.agent_id };
 }
 
 /**
@@ -68,8 +69,8 @@ export async function mergeAtleta(admin: SupabaseClient, loserBid: number, winne
     return { outcome: "already-claimed", loser, winner };
   }
 
-  const { data: loserMatches } = await admin.from("atuacoes_sumula").select("partida_id").eq("bid_atleta", loserBid);
-  const { data: winnerMatches } = await admin.from("atuacoes_sumula").select("partida_id").eq("bid_atleta", winnerBid);
+  const { data: loserMatches } = await admin.from("atuacoes_sumula").select("partida_id").eq("fb_id_atleta", loserBid);
+  const { data: winnerMatches } = await admin.from("atuacoes_sumula").select("partida_id").eq("fb_id_atleta", winnerBid);
   const winnerPartidaIds = new Set((winnerMatches ?? []).map((m) => m.partida_id as string));
   const collidingPartidas = (loserMatches ?? []).map((m) => m.partida_id as string).filter((id) => winnerPartidaIds.has(id));
   if (collidingPartidas.length > 0) {
@@ -104,10 +105,10 @@ export async function mergeAtleta(admin: SupabaseClient, loserBid: number, winne
     return { outcome: "write-failed", loser, winner, error: `${stillReferenced} referência(s) real(is) ainda restam após o repointing — atleta perdedor NÃO apagado.` };
   }
 
-  const { error: delError } = await admin.from("atletas").delete().eq("bid", loserBid);
+  const { error: delError } = await admin.from("atletas").delete().eq("fb_id", loserBid);
   if (delError) return { outcome: "write-failed", loser, winner, error: `delete do atleta perdedor: ${delError.message}` };
 
-  await admin.rpc("recompute_atleta_stats", { p_bid: winnerBid });
+  await admin.rpc("recompute_atleta_stats", { p_fb_id: winnerBid });
 
   return { outcome: "merged", loser, winner, rowCounts, totalRows };
 }

@@ -3,7 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 export interface FavoriteRecord {
   id: string;
   userId: string;
-  bid: number;
+  fbId: number;
   rating: number;
   notes: string | null;
 }
@@ -11,7 +11,7 @@ export interface FavoriteRecord {
 interface FavoriteRow {
   id: string;
   user_id: string;
-  bid_atleta: number;
+  fb_id_atleta: number;
   nota: number | null;
   notas: string | null;
 }
@@ -20,7 +20,7 @@ function fromRow(row: FavoriteRow): FavoriteRecord {
   return {
     id: row.id,
     userId: row.user_id,
-    bid: Number(row.bid_atleta),
+    fbId: Number(row.fb_id_atleta),
     rating: row.nota ?? 50,
     notes: row.notas,
   };
@@ -34,7 +34,7 @@ function fromRow(row: FavoriteRow): FavoriteRecord {
 export async function listFavorites(client: SupabaseClient, userId: string): Promise<FavoriteRecord[]> {
   const { data, error } = await client
     .from("favoritos")
-    .select("id,user_id,bid_atleta,nota,notas")
+    .select("id,user_id,fb_id_atleta,nota,notas")
     .eq("user_id", userId)
     .order("nota", { ascending: false });
   if (error) throw error;
@@ -43,23 +43,23 @@ export async function listFavorites(client: SupabaseClient, userId: string): Pro
 
 export async function upsertFavorite(
   client: SupabaseClient,
-  input: { userId: string; bid: number; rating: number; notes: string | null }
+  input: { userId: string; fbId: number; rating: number; notes: string | null }
 ): Promise<FavoriteRecord> {
   const rating = Math.max(0, Math.min(100, Math.round(input.rating)));
   const notes = input.notes?.trim() || null;
   const { data, error } = await client
     .from("favoritos")
     .upsert(
-      { user_id: input.userId, bid_atleta: input.bid, nota: rating, notas: notes },
-      { onConflict: "user_id,bid_atleta" }
+      { user_id: input.userId, fb_id_atleta: input.fbId, nota: rating, notas: notes },
+      { onConflict: "user_id,fb_id_atleta" }
     )
-    .select("id,user_id,bid_atleta,nota,notas")
+    .select("id,user_id,fb_id_atleta,nota,notas")
     .single();
   if (error) throw error;
   return fromRow(data as FavoriteRow);
 }
 
-export async function removeFavorite(client: SupabaseClient, bid: number): Promise<void> {
-  const { error } = await client.rpc("remove_favorite_and_slot", { p_bid: bid });
+export async function removeFavorite(client: SupabaseClient, fbId: number): Promise<void> {
+  const { error } = await client.rpc("remove_favorite_and_slot", { p_fb_id: fbId });
   if (error) throw error;
 }

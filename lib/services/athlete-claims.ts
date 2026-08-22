@@ -20,12 +20,12 @@ function mapRequest(row: { id: string; documento_url: string; mensagem: string; 
   return { id: row.id, documentUrl: row.documento_url, message: row.mensagem, status: row.status, createdAt: row.created_at };
 }
 
-export async function loadAthleteClaimContext(client: SupabaseClient, input: { bid: number; userId: string; role: SessionRole }): Promise<AthleteClaimContext> {
+export async function loadAthleteClaimContext(client: SupabaseClient, input: { fbId: number; userId: string; role: SessionRole }): Promise<AthleteClaimContext> {
   const [athleteResult, requestResult, agentResult] = await Promise.all([
-    client.from("atletas").select("claim_status,agent_id").eq("bid", input.bid).single(),
+    client.from("atletas").select("claim_status,agent_id").eq("fb_id", input.fbId).single(),
     client.from("solicitacoes_reivindicacao")
       .select("id,documento_url,mensagem,status,created_at")
-      .eq("tipo", "atleta").eq("bid_atleta", input.bid).eq("requested_by", input.userId)
+      .eq("tipo", "atleta").eq("fb_id_atleta", input.fbId).eq("requested_by", input.userId)
       .order("created_at", { ascending: false }).limit(1).maybeSingle(),
     input.role === "agent"
       ? client.from("agentes").select("id,verified_status").eq("user_id", input.userId).maybeSingle()
@@ -51,10 +51,10 @@ export async function loadAthleteClaimContext(client: SupabaseClient, input: { b
   };
 }
 
-export async function createAthleteClaim(client: SupabaseClient, input: { bid: number; userId: string; documentUrl: string; message: string }): Promise<AthleteClaimRequestRecord> {
+export async function createAthleteClaim(client: SupabaseClient, input: { fbId: number; userId: string; documentUrl: string; message: string }): Promise<AthleteClaimRequestRecord> {
   const { data, error } = await client.from("solicitacoes_reivindicacao").insert({
     tipo: "atleta",
-    bid_atleta: input.bid,
+    fb_id_atleta: input.fbId,
     clube_id: null,
     requested_by: input.userId,
     documento_url: input.documentUrl,

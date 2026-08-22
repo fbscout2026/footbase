@@ -59,7 +59,7 @@ export function AdminClaims({ claims }: { claims: AdminClaim[] | null }) {
 function ClaimCard({ claim, busy, onDecide }: { claim: AdminClaim; busy: boolean; onDecide: (id: string, status: Exclude<ClaimStatus, "pending">) => void }) {
   const { t } = useT();
   const target = claim.tipo === "atleta"
-    ? `${claim.athleteName ?? "—"}${claim.bidAtleta ? ` · ${formatAthleteCode(claim.bidAtleta)}` : ""}${claim.athleteCategory ? ` · ${claim.athleteCategory}` : ""}`
+    ? `${claim.athleteName ?? "—"}${claim.fbIdAtleta ? ` · ${formatAthleteCode(claim.fbIdAtleta)}` : ""}${claim.athleteCategory ? ` · ${claim.athleteCategory}` : ""}`
     : `${claim.clubName ?? "—"}${claim.clubState ? ` · ${claim.clubState}` : ""}`;
 
   return <section className="matchday-surface p-5">

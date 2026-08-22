@@ -34,25 +34,25 @@ export interface FavoritesBoardData {
  * `athletes` (for display, e.g. an already-saved slot referencing them) — only
  * excluded from the ranking candidate list. */
 export async function loadFavoritesBoardData(client: SupabaseClient, favorites: FavoriteRecord[]): Promise<FavoritesBoardData> {
-  const ratingByBid = new Map(favorites.map((f) => [f.bid, f.rating]));
-  const bids = favorites.map((f) => f.bid);
+  const ratingByBid = new Map(favorites.map((f) => [f.fbId, f.rating]));
+  const bids = favorites.map((f) => f.fbId);
   // Needs the athlete's current category before it can score "played above
   // category" correctly, so this can't run in parallel with the athlete load.
   const athleteList = await loadAtletasByBids(client, bids);
-  const currentCategoryByBid = new Map(athleteList.map((a) => [a.bid, a.currentCategory]));
+  const currentCategoryByBid = new Map(athleteList.map((a) => [a.fbId, a.currentCategory]));
   const recentStatsByBid = await loadRecentStatsByBids(client, bids, currentCategoryByBid, RECENT_FORM_WINDOW);
-  const athletes = new Map(athleteList.map((a) => [a.bid, a]));
+  const athletes = new Map(athleteList.map((a) => [a.fbId, a]));
 
   const candidates = athleteList.flatMap((athlete) => {
     const mainPosition = asTacticalPosition(athlete.mainPosition);
     if (!mainPosition) return [];
-    const recent = recentStatsByBid.get(athlete.bid) ?? EMPTY_RECENT_STATS;
+    const recent = recentStatsByBid.get(athlete.fbId) ?? EMPTY_RECENT_STATS;
     const evolution = computePerformanceIndex({ mainPosition: athlete.mainPosition, stats: recent });
     return [{
-      bid: athlete.bid,
+      fbId: athlete.fbId,
       mainPosition,
       secondaryPosition: asTacticalPosition(athlete.posicaoSecundaria),
-      favoriteRating: ratingByBid.get(athlete.bid) ?? 0,
+      favoriteRating: ratingByBid.get(athlete.fbId) ?? 0,
       matches: recent.totalMatches,
       minutes: recent.totalMinutes,
       goals: recent.totalGoals,

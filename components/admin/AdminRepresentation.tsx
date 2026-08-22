@@ -16,7 +16,7 @@ export function AdminRepresentation({ athletes, agents, history }: { athletes: R
   const router = useRouter();
   const client = useMemo(() => createClient(), []);
 
-  const [bid, setBid] = useState("");
+  const [fbId, setBid] = useState("");
   const [newAgentId, setNewAgentId] = useState("");
   const [justificativa, setJustificativa] = useState("");
   const [comprovanteUrl, setComprovanteUrl] = useState("");
@@ -28,14 +28,14 @@ export function AdminRepresentation({ athletes, agents, history }: { athletes: R
     return <section className="matchday-surface p-10 text-center"><p className="text-sm text-danger">{t("admin.representation.loadError")}</p></section>;
   }
 
-  const selectedAthlete = athletes.find((a) => String(a.bid) === bid) ?? null;
+  const selectedAthlete = athletes.find((a) => String(a.fbId) === fbId) ?? null;
   const agentOptions = agents.filter((a) => a.id !== selectedAthlete?.agentId).map((a) => ({ value: a.id, label: a.agencyName ? `${a.fullName} · ${a.agencyName}` : a.fullName }));
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     setSaving(true); setError(""); setSuccess(false);
     try {
-      await transferRepresentation(client, Number(bid), newAgentId, justificativa, comprovanteUrl);
+      await transferRepresentation(client, Number(fbId), newAgentId, justificativa, comprovanteUrl);
       setSuccess(true);
       setBid(""); setNewAgentId(""); setJustificativa(""); setComprovanteUrl("");
       router.refresh();
@@ -46,7 +46,7 @@ export function AdminRepresentation({ athletes, agents, history }: { athletes: R
     }
   }
 
-  const canSubmit = bid && newAgentId && justificativa.trim().length >= 20 && /^https?:\/\//.test(comprovanteUrl);
+  const canSubmit = fbId && newAgentId && justificativa.trim().length >= 20 && /^https?:\/\//.test(comprovanteUrl);
 
   return <div className="space-y-5">
     <section className="matchday-surface p-5">
@@ -56,9 +56,9 @@ export function AdminRepresentation({ athletes, agents, history }: { athletes: R
       <form className="mt-4 grid gap-4 sm:grid-cols-2" onSubmit={submit}>
         <label className="flex flex-col gap-1.5 sm:col-span-2">
           <span className="text-sm font-medium text-muted">{t("admin.representation.athlete")}</span>
-          <Select ariaLabel={t("admin.representation.athlete")} value={bid} onChange={(v) => { setBid(v); setNewAgentId(""); }}
+          <Select ariaLabel={t("admin.representation.athlete")} value={fbId} onChange={(v) => { setBid(v); setNewAgentId(""); }}
             placeholder={t("admin.representation.athletePlaceholder")}
-            options={athletes.map((a) => ({ value: String(a.bid), label: `${a.name} · ${formatAthleteCode(a.bid)}${a.category ? ` · ${a.category}` : ""}`, hint: a.agentName ?? undefined }))} />
+            options={athletes.map((a) => ({ value: String(a.fbId), label: `${a.name} · ${formatAthleteCode(a.fbId)}${a.category ? ` · ${a.category}` : ""}`, hint: a.agentName ?? undefined }))} />
         </label>
 
         {selectedAthlete && <p className="text-sm text-muted sm:col-span-2">{t("admin.representation.currentAgent")}: <strong className="text-foreground">{selectedAthlete.agentName ?? "—"}</strong></p>}
@@ -66,7 +66,7 @@ export function AdminRepresentation({ athletes, agents, history }: { athletes: R
         <label className="flex flex-col gap-1.5">
           <span className="text-sm font-medium text-muted">{t("admin.representation.newAgent")}</span>
           <Select ariaLabel={t("admin.representation.newAgent")} value={newAgentId} onChange={setNewAgentId}
-            placeholder={t("admin.representation.newAgentPlaceholder")} disabled={!bid} options={agentOptions} />
+            placeholder={t("admin.representation.newAgentPlaceholder")} disabled={!fbId} options={agentOptions} />
         </label>
 
         <label className="flex flex-col gap-1.5">
@@ -95,7 +95,7 @@ export function AdminRepresentation({ athletes, agents, history }: { athletes: R
         ? <p className="mt-3 text-sm text-muted">{t("admin.representation.historyEmpty")}</p>
         : <div className="mt-3 space-y-3">{history.map((r) => <div key={r.id} className="border border-border p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="font-semibold">{r.athleteName ?? formatAthleteCode(r.bidAtleta)}</p>
+              <p className="font-semibold">{r.athleteName ?? formatAthleteCode(r.fbIdAtleta)}</p>
               <span className="text-xs text-muted">{new Date(r.createdAt).toLocaleString()}</span>
             </div>
             <p className="mt-1 text-sm text-muted">{r.agenteAnteriorName ?? t("admin.representation.noPreviousAgent")} → <strong className="text-foreground">{r.agenteNovoName ?? "—"}</strong></p>

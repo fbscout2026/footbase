@@ -8,22 +8,22 @@ import { useFavorites } from "@/lib/favorites/FavoritesProvider";
 import { Button } from "@/components/ui/Button";
 
 export function FavoriteButton({
-  bid,
+  fbId,
   athleteName,
   compact = false,
 }: {
-  bid: number;
+  fbId: number;
   athleteName: string;
   compact?: boolean;
 }) {
   const { t } = useT();
   const { getFavorite, saveFavorite, removeFavorite, savingBid } = useFavorites();
-  const favorite = getFavorite(bid);
+  const favorite = getFavorite(fbId);
   const [open, setOpen] = useState(false);
   const [rating, setRating] = useState(favorite?.rating ?? 50);
   const [notes, setNotes] = useState(favorite?.notes ?? "");
   const [error, setError] = useState(false);
-  const isSaving = savingBid === bid;
+  const isSaving = savingBid === fbId;
   const mutationsLocked = savingBid !== null;
 
   useEffect(() => {
@@ -36,7 +36,7 @@ export function FavoriteButton({
   async function handleSave() {
     setError(false);
     try {
-      await saveFavorite(bid, rating, notes);
+      await saveFavorite(fbId, rating, notes);
       setOpen(false);
     } catch {
       setError(true);
@@ -46,7 +46,7 @@ export function FavoriteButton({
   async function handleRemove() {
     setError(false);
     try {
-      await removeFavorite(bid);
+      await removeFavorite(fbId);
       setOpen(false);
     } catch {
       setError(true);
@@ -89,13 +89,13 @@ export function FavoriteButton({
           <div
             role="dialog"
             aria-modal="true"
-            aria-labelledby={`favorite-title-${bid}`}
+            aria-labelledby={`favorite-title-${fbId}`}
             className="w-full max-w-md rounded-sm border border-border bg-surface p-5 shadow-2xl"
           >
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-xs font-bold uppercase tracking-wider text-brand">{t("favorites.shortlist")}</p>
-                <h2 id={`favorite-title-${bid}`} className="mt-1 text-lg font-bold">{athleteName}</h2>
+                <h2 id={`favorite-title-${fbId}`} className="mt-1 text-lg font-bold">{athleteName}</h2>
               </div>
               <button
                 type="button"
@@ -107,13 +107,13 @@ export function FavoriteButton({
               </button>
             </div>
 
-            <label htmlFor={`favorite-rating-${bid}`} className="mt-5 block text-sm font-medium text-muted">
+            <label htmlFor={`favorite-rating-${fbId}`} className="mt-5 block text-sm font-medium text-muted">
               {t("favorites.rating")}: <strong className="text-brand">{rating}/100</strong>
             </label>
             <div className="mt-2 flex items-center gap-3">
               <Star size={18} className="text-brand" />
               <input
-                id={`favorite-rating-${bid}`}
+                id={`favorite-rating-${fbId}`}
                 type="range"
                 min="0"
                 max="100"
@@ -124,11 +124,11 @@ export function FavoriteButton({
               />
             </div>
 
-            <label htmlFor={`favorite-notes-${bid}`} className="mt-5 block text-sm font-medium text-muted">
+            <label htmlFor={`favorite-notes-${fbId}`} className="mt-5 block text-sm font-medium text-muted">
               {t("favorites.notes")}
             </label>
             <textarea
-              id={`favorite-notes-${bid}`}
+              id={`favorite-notes-${fbId}`}
               rows={4}
               maxLength={1000}
               value={notes}

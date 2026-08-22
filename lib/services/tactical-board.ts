@@ -10,7 +10,7 @@ export interface TacticalBoardRecord {
 }
 
 export interface TacticalBoardSlotRecord {
-  bid: number;
+  fbId: number;
   position: TacticalPosition;
   order: number;
 }
@@ -24,7 +24,7 @@ interface BoardRow {
 }
 
 interface SlotRow {
-  bid_atleta: number;
+  fb_id_atleta: number;
   position_code: TacticalPosition;
   slot_order: number;
 }
@@ -85,13 +85,13 @@ export async function listBoardSlots(
 ): Promise<TacticalBoardSlotRecord[]> {
   const { data, error } = await client
     .from("prancheta_slots")
-    .select("bid_atleta,position_code,slot_order")
+    .select("fb_id_atleta,position_code,slot_order")
     .eq("prancheta_id", boardId)
     .eq("slot_type", "starter")
     .order("slot_order");
   if (error) throw error;
   return (data as SlotRow[]).map((row) => ({
-    bid: Number(row.bid_atleta), position: row.position_code, order: row.slot_order,
+    fbId: Number(row.fb_id_atleta), position: row.position_code, order: row.slot_order,
   }));
 }
 
@@ -105,7 +105,7 @@ export async function replaceBoardSlots(
     p_board_id: boardId,
     p_formation: formation,
     p_slots: slots.map((slot) => ({
-      bid_atleta: slot.bid,
+      fb_id_atleta: slot.fbId,
       position_code: slot.position,
       slot_order: slot.order,
     })),

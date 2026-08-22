@@ -82,13 +82,13 @@ export function computeStandings(matches: MatchResult[], clubs: Map<string, Club
 }
 
 export interface AppearanceGoals {
-  bid: number;
+  fbId: number;
   name: string;
   goals: number;
 }
 
 export interface ScorerRow {
-  bid: number;
+  fbId: number;
   name: string;
   goals: number;
 }
@@ -99,9 +99,9 @@ export function computeTopScorers(appearances: AppearanceGoals[]): ScorerRow[] {
   const totals = new Map<number, ScorerRow>();
   for (const a of appearances) {
     if (a.goals <= 0) continue;
-    const existing = totals.get(a.bid);
+    const existing = totals.get(a.fbId);
     if (existing) existing.goals += a.goals;
-    else totals.set(a.bid, { bid: a.bid, name: a.name, goals: a.goals });
+    else totals.set(a.fbId, { fbId: a.fbId, name: a.name, goals: a.goals });
   }
   return [...totals.values()].sort((a, b) => b.goals - a.goals || a.name.localeCompare(b.name));
 }

@@ -34,11 +34,11 @@ export async function buildParsedMatchFromFpf(
   if (registros.length > 0) {
     const { data, error } = await admin
       .from("atleta_fontes")
-      .select("id_externo, bid")
+      .select("id_externo, fb_id")
       .eq("fonte", "fpf")
       .in("id_externo", registros);
     if (error) throw error;
-    bidByRegistro = new Map((data ?? []).map((r) => [String(r.id_externo), Number(r.bid)]));
+    bidByRegistro = new Map((data ?? []).map((r) => [String(r.id_externo), Number(r.fb_id)]));
   }
 
   const appearances: ParsedAppearance[] = [];

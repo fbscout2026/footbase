@@ -7,7 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { formatAthleteCode } from "@/lib/format";
 
 interface SlotResult {
-  bid: number;
+  fbId: number;
   name: string;
   mainPosition: string | null;
   currentCategory: string | null;
@@ -85,7 +85,7 @@ export function AtletaCompareSelector({
                   excludeBids={selectedBids}
                   placeholder={t("compare.selector.placeholder")}
                   ariaLabel={`${t("compare.slot")} ${index + 1}`}
-                  onPick={(r) => selectAt(index, r.bid)}
+                  onPick={(r) => selectAt(index, r.fbId)}
                 />
               )}
             </div>
@@ -124,14 +124,16 @@ function SlotSearch({
     const timer = window.setTimeout(async () => {
       const safeQuery = query.trim().replace(/[%_]/g, "");
       if (safeQuery.length < 2) return;
-      const isNumeric = /^\d+$/.test(safeQuery);
-      const q = createClient().from("atletas").select("bid,name,main_position,current_category").order("name").limit(8);
-      const { data } = isNumeric ? await q.eq("bid", Number(safeQuery)) : await q.ilike("name", `%${safeQuery}%`);
+      // Accepts a raw fb_id or the displayed "FB-" code.
+      const fbIdDigits = safeQuery.replace(/^fb-?/i, "");
+      const isNumeric = /^\d+$/.test(fbIdDigits);
+      const q = createClient().from("atletas").select("fb_id,name,main_position,current_category").order("name").limit(8);
+      const { data } = isNumeric ? await q.eq("fb_id", Number(fbIdDigits)) : await q.ilike("name", `%${safeQuery}%`);
       if (active) {
         setResults(
           (data ?? [])
-            .filter((a) => !excludeBids.includes(Number(a.bid)))
-            .map((a) => ({ bid: Number(a.bid), name: a.name, mainPosition: a.main_position, currentCategory: a.current_category })),
+            .filter((a) => !excludeBids.includes(Number(a.fb_id)))
+            .map((a) => ({ fbId: Number(a.fb_id), name: a.name, mainPosition: a.main_position, currentCategory: a.current_category })),
         );
       }
     }, 250);
@@ -167,7 +169,7 @@ function SlotSearch({
           ) : (
             results.map((r) => (
               <button
-                key={r.bid}
+                key={r.fbId}
                 type="button"
                 onClick={() => { onPick(r); setQuery(""); setOpen(false); }}
                 className="block w-full px-3 py-2 text-left text-sm transition-colors hover:bg-surface-hover"

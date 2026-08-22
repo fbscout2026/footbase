@@ -22,20 +22,20 @@ function one<T>(rel: T | T[] | null): T | null {
 }
 
 // Fields whose correction can't be a blind `update {[field]: suggested_value}`:
-// - athlete `bid` is the primary key other tables reference (favoritos, prancheta,
+// - athlete `fbId` is the primary key other tables reference (favoritos, prancheta,
 //   atuacoes_sumula) — repointing it needs a dedicated migration path, not a UI click.
 // - athlete `performance_data` has no matching column (it's derived from
 //   atuacoes_sumula; capture_correction_current_value() stores null for it already).
 // - club `crest` isn't a real column (`clubes.webp_crest_url`/`crest_storage_path`) and
 //   must go through the .webp ≤120x120 processing pipeline, not a raw URL write.
-const ATHLETE_FIELDS_REQUIRING_MANUAL_APPLY = new Set(["bid", "performance_data"]);
+const ATHLETE_FIELDS_REQUIRING_MANUAL_APPLY = new Set(["fb_id", "performance_data"]);
 const CLUB_FIELDS_REQUIRING_MANUAL_APPLY = new Set(["crest"]);
 
 // Admin reads all institutional corrections (club + athlete).
 export async function loadCorrections(client: SupabaseClient): Promise<AdminCorrection[]> {
   const [clubRes, athRes] = await Promise.all([
     client.from("club_correction_requests").select("id, field_name, current_value, suggested_value, reason, evidence_url, status, created_at, clubes(name)").order("created_at", { ascending: false }),
-    client.from("solicitacoes_correcao").select("id, field_name, current_value, suggested_value, reason, comprovante_url, status, created_at, bid_atleta, atletas(name)").order("created_at", { ascending: false }),
+    client.from("solicitacoes_correcao").select("id, field_name, current_value, suggested_value, reason, comprovante_url, status, created_at, fb_id_atleta, atletas(name)").order("created_at", { ascending: false }),
   ]);
   if (clubRes.error) throw clubRes.error;
   if (athRes.error) throw athRes.error;
@@ -58,7 +58,7 @@ export async function loadCorrections(client: SupabaseClient): Promise<AdminCorr
     return {
       id: String(r.id),
       source: "athlete",
-      targetLabel: `${at?.name ?? "—"}${r.bid_atleta ? ` · ${formatAthleteCode(Number(r.bid_atleta))}` : ""}`,
+      targetLabel: `${at?.name ?? "—"}${r.fb_id_atleta ? ` · ${formatAthleteCode(Number(r.fb_id_atleta))}` : ""}`,
       fieldName: String(r.field_name),
       currentValue: r.current_value as string | null,
       suggestedValue: String(r.suggested_value),
@@ -91,7 +91,7 @@ export async function setCorrectionStatus(
   let applied = false;
 
   if (status === "approved") {
-    const idColumn = source === "club" ? "club_id" : "bid_atleta";
+    const idColumn = source === "club" ? "club_id" : "fb_id_atleta";
     const { data: row, error: readError } = await client
       .from(table)
       .select(`${idColumn}, field_name, suggested_value`)
@@ -103,7 +103,7 @@ export async function setCorrectionStatus(
     const manualFields = source === "club" ? CLUB_FIELDS_REQUIRING_MANUAL_APPLY : ATHLETE_FIELDS_REQUIRING_MANUAL_APPLY;
     if (!manualFields.has(fieldName)) {
       const targetTable = source === "club" ? "clubes" : "atletas";
-      const matchColumn = source === "club" ? "id" : "bid";
+      const matchColumn = source === "club" ? "id" : "fb_id";
       const { error: applyError } = await client
         .from(targetTable)
         .update({ [fieldName]: (row as Record<string, unknown>).suggested_value })

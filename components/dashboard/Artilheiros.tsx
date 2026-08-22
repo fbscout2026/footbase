@@ -20,9 +20,9 @@ export function Artilheiros({ athletes: scorers }: { athletes: ScorerRow[] }) {
       ) : (
         <ol className="divide-y divide-border">
           {scorers.map((a, i) => (
-            <li key={a.bid}>
+            <li key={a.fbId}>
               <Link
-                href={`/atletas/${a.bid}`}
+                href={`/atletas/${a.fbId}`}
                 className="flex items-center gap-3 py-2.5 transition-colors hover:text-brand"
               >
                 <span className="w-5 shrink-0 text-center text-sm font-bold text-brand">

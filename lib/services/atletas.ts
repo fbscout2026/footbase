@@ -29,7 +29,7 @@ export interface AtletaStats {
 }
 
 export interface AtletaRecord {
-  bid: number;
+  fbId: number;
   fifaId: string | null;
   name: string;
   apelido: string | null;
@@ -60,14 +60,14 @@ export interface AtletaRecord {
 }
 
 const VIEW_COLUMNS =
-  "bid,fifa_id,name,apelido,birth_date,ano_nascimento,age,nacionalidade,tem_passaporte,main_position,posicao_secundaria," +
+  "fb_id,fifa_id,name,apelido,birth_date,ano_nascimento,age,nacionalidade,tem_passaporte,main_position,posicao_secundaria," +
   "dominant_foot,height_cm,weight_kg,inicio_carreira,contract_end_date,contract_status,current_club_id,current_club_name," +
   "current_club_crest_url,current_category,experiencia_internacional,jogos_suspenso,agent_id,claim_status,youtube_video_url," +
   "total_matches,total_minutes,total_goals,total_assists,total_yellow_cards,total_red_cards,total_clean_sheets," +
   "times_played_above_category,games_above_current_category,last_match_date,is_inactive_30d";
 
 type ViewRow = {
-  bid: number; fifa_id: string | null; name: string; apelido: string | null; birth_date: string | null;
+  fb_id: number; fifa_id: string | null; name: string; apelido: string | null; birth_date: string | null;
   ano_nascimento: number | null; age: number | null; nacionalidade: string; tem_passaporte: boolean;
   main_position: string | null; posicao_secundaria: string | null; dominant_foot: string | null;
   height_cm: number | null; weight_kg: number | null; inicio_carreira: number | null; contract_end_date: string | null;
@@ -82,7 +82,7 @@ type ViewRow = {
 
 function mapRow(r: ViewRow): AtletaRecord {
   return {
-    bid: Number(r.bid),
+    fbId: Number(r.fb_id),
     fifaId: r.fifa_id,
     name: r.name,
     apelido: r.apelido,
@@ -193,18 +193,30 @@ function applyAtletaFilters(query: any, f: AtletaFilterState): any {
     const term = f.name.trim().replace(/,/g, "");
     q = q.or(`name.ilike.%${term}%,apelido.ilike.%${term}%`);
   }
-  if (f.bid.trim()) {
-    const digits = f.bid.trim().replace(/\D/g, "");
+  if (f.fbId.trim()) {
+    const digits = f.fbId.trim().replace(/\D/g, "");
     if (digits) {
       // Approximates the old client-side "contains anywhere" as "starts with"
       // instead — PostgREST can't pattern-match a bigint column directly (no
       // text cast available through the filter API), but a numeric range does
-      // the same job for the real, overwhelmingly common case of searching a
-      // BID you already know from its first digits.
-      const width = Math.max(6, digits.length);
-      const lo = Number(digits.padEnd(width, "0"));
-      const hi = lo + 10 ** (width - digits.length);
-      q = q.gte("bid", lo).lt("bid", hi);
+      // the same job for the real, overwhelmingly common case of searching an
+      // fb_id you already know from its first digits.
+      //
+      // fb_ids come in two known widths today (6-digit CBF-style bids; 9-digit
+      // internally-allocated ones — see provisional-athlete.ts's
+      // PROVISIONAL_BID_FLOOR) — this used to hardcode a minimum width of 6,
+      // so a short query like "9" only ever matched a 6-digit range and could
+      // never find a provisional athlete. Build one prefix range per known
+      // width that's still >= what was typed, and OR them — same `.or()`
+      // pattern already used by the name filter above.
+      const KNOWN_WIDTHS = [6, 9];
+      const widths = KNOWN_WIDTHS.filter((w) => w >= digits.length);
+      const ranges = (widths.length > 0 ? widths : [digits.length]).map((width) => {
+        const lo = Number(digits.padEnd(width, "0"));
+        const hi = lo + 10 ** (width - digits.length);
+        return `and(fb_id.gte.${lo},fb_id.lt.${hi})`;
+      });
+      q = q.or(ranges.join(","));
     }
   }
 
@@ -292,8 +304,8 @@ export async function loadAtletasExplorer(client: SupabaseClient, page = 0, filt
   // always came back empty even though real matches existed elsewhere in the
   // other 465 pages. Filtering here instead searches the real ~9,300-athlete
   // table and paginates the FILTERED result set.
-  let idQuery = client.from("atletas").select("bid").order("name").range(from, to);
-  let countQuery = client.from("atletas").select("bid", { count: "exact", head: true });
+  let idQuery = client.from("atletas").select("fb_id").order("name").range(from, to);
+  let countQuery = client.from("atletas").select("fb_id", { count: "exact", head: true });
   if (filters) {
     idQuery = applyAtletaFilters(idQuery, filters);
     countQuery = applyAtletaFilters(countQuery, filters);
@@ -302,33 +314,33 @@ export async function loadAtletasExplorer(client: SupabaseClient, page = 0, filt
   const [idPage, countRes] = await Promise.all([idQuery, countQuery]);
   if (idPage.error) throw idPage.error;
   if (countRes.error) throw countRes.error;
-  const bids = (idPage.data ?? []).map((r) => Number(r.bid));
+  const bids = (idPage.data ?? []).map((r) => Number(r.fb_id));
 
   const pageRes =
     bids.length > 0
-      ? await client.from("view_atleta_resumo").select(VIEW_COLUMNS).in("bid", bids)
+      ? await client.from("view_atleta_resumo").select(VIEW_COLUMNS).in("fb_id", bids)
       : { data: [] as ViewRow[], error: null };
   if (pageRes.error) throw pageRes.error;
 
   // `.in(...)` doesn't preserve the `order("name")` from the id page — re-sort
   // the stats rows back into the same order the bids were fetched in.
   const order = new Map(bids.map((b, i) => [b, i]));
-  const atletas = (pageRes.data as unknown as ViewRow[]).map(mapRow).sort((a, b) => (order.get(a.bid) ?? 0) - (order.get(b.bid) ?? 0));
+  const atletas = (pageRes.data as unknown as ViewRow[]).map(mapRow).sort((a, b) => (order.get(a.fbId) ?? 0) - (order.get(b.fbId) ?? 0));
   return { atletas, totalCount: countRes.count ?? 0 };
 }
 
-/** Small, explicit bid list (comparison feature: max 3) — cheap enough to hit
+/** Small, explicit fbId list (comparison feature: max 3) — cheap enough to hit
  * the full stats view directly, unlike the unbounded explorer list. */
 export async function loadAtletasByBids(client: SupabaseClient, bids: number[]): Promise<AtletaRecord[]> {
   if (bids.length === 0) return [];
-  const { data, error } = await client.from("view_atleta_resumo").select(VIEW_COLUMNS).in("bid", bids);
+  const { data, error } = await client.from("view_atleta_resumo").select(VIEW_COLUMNS).in("fb_id", bids);
   if (error) throw error;
   const order = new Map(bids.map((b, i) => [b, i]));
-  return (data as unknown as ViewRow[]).map(mapRow).sort((a, b) => (order.get(a.bid) ?? 0) - (order.get(b.bid) ?? 0));
+  return (data as unknown as ViewRow[]).map(mapRow).sort((a, b) => (order.get(a.fbId) ?? 0) - (order.get(b.fbId) ?? 0));
 }
 
-export async function loadAtletaDossie(client: SupabaseClient, bid: number): Promise<AtletaRecord | null> {
-  const { data, error } = await client.from("view_atleta_resumo").select(VIEW_COLUMNS).eq("bid", bid).maybeSingle();
+export async function loadAtletaDossie(client: SupabaseClient, fbId: number): Promise<AtletaRecord | null> {
+  const { data, error } = await client.from("view_atleta_resumo").select(VIEW_COLUMNS).eq("fb_id", fbId).maybeSingle();
   if (error) throw error;
   return data ? mapRow(data as unknown as ViewRow) : null;
 }
@@ -376,7 +388,7 @@ export interface EvolucaoPoint {
  * Empty/single-match athletes just get fewer points; nothing is invented to
  * fill a fixed chart width.
  */
-export async function loadEvolucaoReal(client: SupabaseClient, bid: number, limit = 10): Promise<EvolucaoPoint[]> {
+export async function loadEvolucaoReal(client: SupabaseClient, fbId: number, limit = 10): Promise<EvolucaoPoint[]> {
   // `.order("match_date", { referencedTable: ... })` on an embedded/joined table
   // is silently ignored by the installed supabase-js/PostgREST combo (confirmed
   // live, Session 52 — rows came back in an unrelated order despite the option).
@@ -386,7 +398,7 @@ export async function loadEvolucaoReal(client: SupabaseClient, bid: number, limi
   const { data, error } = await client
     .from("atuacoes_sumula")
     .select("minutes_played,goals,assists,yellow_cards,red_cards,clean_sheet,partidas_sumula!inner(match_date)")
-    .eq("bid_atleta", bid);
+    .eq("fb_id_atleta", fbId);
   if (error) throw error;
 
   const sorted = [...(data ?? [])].sort((a: any, b: any) =>
@@ -441,7 +453,7 @@ const EMPTY_RECENT_STATS: RecentStats = {
  * tactical board's ranking (Session 55: switched from season-to-date to
  * "últimos 5 jogos" per explicit user request, so a player's current form
  * outweighs a strong start to the season they've since fallen off from).
- * One batched query for every requested bid (never N+1) — a single
+ * One batched query for every requested fbId (never N+1) — a single
  * favorited athlete's own appearance count is always small, so fetching all
  * of them and taking the most recent `limit` client-side is simple and safe,
  * same approach as `loadEvolucaoReal`.
@@ -465,24 +477,24 @@ export async function loadRecentStatsByBids(
 
   const { data, error } = await client
     .from("atuacoes_sumula")
-    .select("bid_atleta,minutes_played,goals,assists,yellow_cards,red_cards,clean_sheet,partidas_sumula!inner(match_date,match_category)")
-    .in("bid_atleta", bids);
+    .select("fb_id_atleta,minutes_played,goals,assists,yellow_cards,red_cards,clean_sheet,partidas_sumula!inner(match_date,match_category)")
+    .in("fb_id_atleta", bids);
   if (error) throw error;
 
   const byBid = new Map<number, any[]>();
   for (const row of data ?? []) {
-    const list = byBid.get(row.bid_atleta) ?? [];
+    const list = byBid.get(row.fb_id_atleta) ?? [];
     list.push(row);
-    byBid.set(row.bid_atleta, list);
+    byBid.set(row.fb_id_atleta, list);
   }
 
-  for (const bid of bids) {
-    const rows = (byBid.get(bid) ?? [])
+  for (const fbId of bids) {
+    const rows = (byBid.get(fbId) ?? [])
       .slice()
       .sort((a, b) => String(b.partidas_sumula?.match_date ?? "").localeCompare(String(a.partidas_sumula?.match_date ?? "")))
       .slice(0, limit);
 
-    const currentRank = CATEGORIA_RANK[currentCategoryByBid.get(bid) ?? ""];
+    const currentRank = CATEGORIA_RANK[currentCategoryByBid.get(fbId) ?? ""];
     const stats: RecentStats = { ...EMPTY_RECENT_STATS, totalMatches: rows.length };
     for (const r of rows) {
       stats.totalMinutes += r.minutes_played ?? 0;
@@ -494,7 +506,7 @@ export async function loadRecentStatsByBids(
       const matchRank = CATEGORIA_RANK[r.partidas_sumula?.match_category ?? ""];
       if (matchRank != null && currentRank != null && matchRank > currentRank) stats.timesPlayedAboveCategory += 1;
     }
-    result.set(bid, stats);
+    result.set(fbId, stats);
   }
   return result;
 }
@@ -514,7 +526,7 @@ export interface CategoriaAcimaMatch {
  * Single-athlete scale, same "fetch all, filter client-side" approach as
  * `loadEvolucaoReal`.
  */
-export async function loadCategoriaAcimaMatches(client: SupabaseClient, bid: number, currentCategory: string | null): Promise<CategoriaAcimaMatch[]> {
+export async function loadCategoriaAcimaMatches(client: SupabaseClient, fbId: number, currentCategory: string | null): Promise<CategoriaAcimaMatch[]> {
   if (!currentCategory) return [];
   const currentRank = CATEGORIA_RANK[currentCategory];
   if (currentRank == null) return [];
@@ -522,7 +534,7 @@ export async function loadCategoriaAcimaMatches(client: SupabaseClient, bid: num
   const { data, error } = await client
     .from("atuacoes_sumula")
     .select("minutes_played,goals,assists,partidas_sumula!inner(match_date,match_category)")
-    .eq("bid_atleta", bid);
+    .eq("fb_id_atleta", fbId);
   if (error) throw error;
 
   return (data as any[] ?? [])
@@ -557,11 +569,11 @@ export interface CardEvent {
  * still show up with `reason: null` for matches ingested before that parser
  * change (historically backfilled where the PDF was still fetchable, but not
  * every source/match could be recovered). */
-export async function loadCardEvents(client: SupabaseClient, bid: number): Promise<CardEvent[]> {
+export async function loadCardEvents(client: SupabaseClient, fbId: number): Promise<CardEvent[]> {
   const { data, error } = await client
     .from("atuacoes_sumula")
     .select("yellow_cards,red_cards,partidas_sumula!inner(match_date,match_category),atuacao_cartoes(card_type,reason)")
-    .eq("bid_atleta", bid)
+    .eq("fb_id_atleta", fbId)
     .or("yellow_cards.gt.0,red_cards.gt.0");
   if (error) throw error;
 
@@ -607,11 +619,11 @@ export interface MatchHistoryEntry {
  * have `club_id: null`, so `opponentName` is `null` for those rather than a
  * guessed value.
  */
-export async function loadMatchHistory(client: SupabaseClient, bid: number): Promise<MatchHistoryEntry[]> {
+export async function loadMatchHistory(client: SupabaseClient, fbId: number): Promise<MatchHistoryEntry[]> {
   const { data, error } = await client
     .from("atuacoes_sumula")
     .select("club_id,partidas_sumula!inner(match_date,match_category,home_club_id,away_club_id)")
-    .eq("bid_atleta", bid);
+    .eq("fb_id_atleta", fbId);
   if (error) throw error;
 
   const rows = (data as any[]) ?? [];
@@ -658,8 +670,8 @@ export interface ConquistaRecord {
  * scraped from any súmula, and no admin tooling writes to it yet. Querying the
  * real (empty) table instead of the old mock fixtures so the dossiê never shows
  * a trophy that doesn't exist. */
-export async function loadConquistas(client: SupabaseClient, bid: number): Promise<ConquistaRecord[]> {
-  const { data, error } = await client.from("conquistas").select("id,tipo,descricao,ano").eq("bid_atleta", bid).order("ano", { ascending: false });
+export async function loadConquistas(client: SupabaseClient, fbId: number): Promise<ConquistaRecord[]> {
+  const { data, error } = await client.from("conquistas").select("id,tipo,descricao,ano").eq("fb_id_atleta", fbId).order("ano", { ascending: false });
   if (error) throw error;
   return (data ?? []) as ConquistaRecord[];
 }

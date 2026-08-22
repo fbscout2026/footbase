@@ -130,7 +130,7 @@ export function TacticalBoardClient({
   function generatedLineup(nextFormation: Formation): TacticalBoardSlotRecord[] {
     const nextSlots = FORMATION_SLOTS[nextFormation];
     return buildBestLineup(candidates, nextSlots).map((entry) => ({
-      bid: entry.bid,
+      fbId: entry.fbId,
       position: entry.slot.position,
       order: nextSlots.findIndex((slot) => slot.id === entry.slot.id),
     }));
@@ -173,8 +173,8 @@ export function TacticalBoardClient({
 
   useEffect(() => {
     if (savingBid !== null) return;
-    const favoriteBids = new Set(favorites.map((favorite) => favorite.bid));
-    setLineup((current) => current.filter((entry) => favoriteBids.has(entry.bid)));
+    const favoriteBids = new Set(favorites.map((favorite) => favorite.fbId));
+    setLineup((current) => current.filter((entry) => favoriteBids.has(entry.fbId)));
   }, [favorites, savingBid]);
 
   async function handleNameSave() {
@@ -217,11 +217,11 @@ export function TacticalBoardClient({
     }
   }
 
-  async function chooseAthlete(slot: FormationSlot, bid: number) {
+  async function chooseAthlete(slot: FormationSlot, fbId: number) {
     const order = slots.findIndex((entry) => entry.id === slot.id);
     const next = [
-      ...lineup.filter((entry) => entry.order !== order && entry.bid !== bid),
-      { bid, position: slot.position, order },
+      ...lineup.filter((entry) => entry.order !== order && entry.fbId !== fbId),
+      { fbId, position: slot.position, order },
     ].sort((a, b) => a.order - b.order);
     setPickerSlot(null);
     try {
@@ -243,20 +243,20 @@ export function TacticalBoardClient({
     }
   }
 
-  const selectedBids = new Set(lineup.map((entry) => entry.bid));
+  const selectedBids = new Set(lineup.map((entry) => entry.fbId));
   const bench = rankBench(candidates, selectedBids);
   const scores = new Map<number, number>();
   lineup.forEach((entry) => {
     const slot = slots[entry.order];
     if (!slot) return;
     const ranked = rankCandidatesForSlot(candidates, slot);
-    scores.set(entry.order, ranked.find((item) => item.candidate.bid === entry.bid)?.score ?? 0);
+    scores.set(entry.order, ranked.find((item) => item.candidate.fbId === entry.fbId)?.score ?? 0);
   });
 
   const pickerCandidates = pickerSlot
     ? rankCandidatesForSlot(candidates, pickerSlot).filter((entry) =>
-        !selectedBids.has(entry.candidate.bid)
-        || lineup.find((item) => item.order === slots.findIndex((slot) => slot.id === pickerSlot.id))?.bid === entry.candidate.bid
+        !selectedBids.has(entry.candidate.fbId)
+        || lineup.find((item) => item.order === slots.findIndex((slot) => slot.id === pickerSlot.id))?.fbId === entry.candidate.fbId
       )
     : [];
 
@@ -386,7 +386,7 @@ export function TacticalBoardClient({
           candidates={pickerCandidates}
           athletes={athletes}
           hasCurrent={lineup.some((entry) => entry.order === slots.findIndex((slot) => slot.id === pickerSlot.id))}
-          onChoose={(bid) => chooseAthlete(pickerSlot, bid)}
+          onChoose={(fbId) => chooseAthlete(pickerSlot, fbId)}
           onClear={() => clearSlot(pickerSlot)}
           onClose={() => setPickerSlot(null)}
         />

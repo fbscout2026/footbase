@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export interface RepresentedAthlete {
-  bid: number;
+  fbId: number;
   name: string;
   category: string | null;
   agentId: string;
@@ -17,7 +17,7 @@ export interface EligibleAgent {
 
 export interface TransferRecord {
   id: string;
-  bidAtleta: number;
+  fbIdAtleta: number;
   agenteAnteriorId: string | null;
   agenteNovoId: string;
   justificativa: string;
@@ -40,13 +40,13 @@ function one<T>(rel: T | T[] | null): T | null {
 export async function loadRepresentedAthletes(client: SupabaseClient): Promise<RepresentedAthlete[]> {
   const { data, error } = await client
     .from("atletas")
-    .select("bid, name, current_category, agent_id, agentes(full_name)")
+    .select("fb_id, name, current_category, agent_id, agentes(full_name)")
     .eq("claim_status", "claimed")
     .not("agent_id", "is", null)
     .order("name");
   if (error) throw error;
   return (data ?? []).map((r) => ({
-    bid: Number(r.bid),
+    fbId: Number(r.fb_id),
     name: r.name as string,
     category: r.current_category as string | null,
     agentId: String(r.agent_id),
@@ -77,12 +77,12 @@ export async function loadEligibleAgents(client: SupabaseClient): Promise<Eligib
 export async function loadTransferHistory(client: SupabaseClient): Promise<TransferRecord[]> {
   const { data, error } = await client
     .from("representacao_transferencias")
-    .select("id, bid_atleta, agente_anterior_id, agente_novo_id, justificativa, comprovante_url, admin_id, created_at")
+    .select("id, fb_id_atleta, agente_anterior_id, agente_novo_id, justificativa, comprovante_url, admin_id, created_at")
     .order("created_at", { ascending: false });
   if (error) throw error;
   return (data ?? []).map((r) => ({
     id: String(r.id),
-    bidAtleta: Number(r.bid_atleta),
+    fbIdAtleta: Number(r.fb_id_atleta),
     agenteAnteriorId: r.agente_anterior_id as string | null,
     agenteNovoId: String(r.agente_novo_id),
     justificativa: r.justificativa as string,
@@ -109,13 +109,13 @@ export async function loadAgentNames(client: SupabaseClient): Promise<Record<str
 // atletas.agent_id and records history atomically (admin_transferir_representacao).
 export async function transferRepresentation(
   client: SupabaseClient,
-  bid: number,
+  fbId: number,
   novoAgenteId: string,
   justificativa: string,
   comprovanteUrl: string,
 ): Promise<void> {
   const { error } = await client.rpc("admin_transferir_representacao", {
-    p_bid: bid,
+    p_fb_id: fbId,
     p_novo_agente_id: novoAgenteId,
     p_justificativa: justificativa,
     p_comprovante_url: comprovanteUrl,

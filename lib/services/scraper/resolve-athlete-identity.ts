@@ -4,16 +4,36 @@
 // appearances across every category / tournament / state or national competition /
 // source — WITHOUT duplicating, and WITHOUT ever merging two different people.
 //
-// The canonical key is `atletas.bid` (CBF 6-digit id). Given a candidate seen in
-// some source, resolution follows a confidence ladder:
-//   1. the source carries the CBF bid            → identity is that bid (exact)
-//   2. (fonte, externalId) already mapped in
-//      `atleta_fontes`                            → the mapped bid (exact)
+// The canonical key is `atletas.fb_id` (a permanent internal identity — see the
+// "FB-ID: chave suprema" plan; a source's own number, CBF bid included, is never
+// blind-trusted as identity anymore, only as one more `atleta_fontes` candidate).
+// Given a candidate seen in some source, resolution follows a confidence ladder:
+//   1. (fonte, externalId) already mapped in
+//      `atleta_fontes`                            → the mapped fb_id (exact)
+//   2. the source carries a bid that already
+//      exists as some `atletas` row               → that fb_id (exact — a real
+//                                                     CBF bid is globally unique,
+//                                                     safe to trust without more)
 //   3. a single existing athlete matches
-//      name + birth_date                          → 'matched' (admin confirms; never auto-merged)
-//   4. several match, or a name-only hit with no
-//      birth_date                                 → 'ambiguous' (admin decides)
-//   5. nothing matches                            → 'new' (seed a fresh bid; needs a birthDate)
+//      name + birth_date, OR (no birth_date
+//      available) name + current club             → 'matched' (admin confirms; never auto-merged)
+//   4. several match, or a name-only hit with
+//      neither birth_date nor club confirming      → 'ambiguous' (admin decides)
+//   5. nothing matches                            → 'new' — caller mints the fb_id:
+//                                                     the source's own bid directly
+//                                                     when it has one (CBF/FMF/FGF),
+//                                                     otherwise via the internal
+//                                                     allocator (FERJ and future
+//                                                     bid-less sources)
+//
+// Session 56 fix: tier 2 used to short-circuit on ANY source-provided bid, even a
+// brand-new one never seen before — meaning a real CBF bid was never compared
+// against an athlete who might already exist under a different (e.g. provisional,
+// FERJ-only) fb_id. That's exactly how a cross-federation transfer created a
+// duplicate identity. Now tier 2 only fires when the bid already exists as a row;
+// a genuinely new bid falls through to the same name-matching tiers 3/4 every other
+// source already goes through, so a provisional twin gets found and reused instead
+// of silently duplicated.
 //
 // Steps 3–4 are NEVER auto-applied: a weak/fuzzy match is surfaced for admin review
 // (Fase 5 curadoria) so two distinct people are never fused. This function only
@@ -22,13 +42,14 @@
 export interface ExistingAthlete {
   bid: number;
   name: string;
-  birthDate: string; // ISO — atletas.birth_date is NOT NULL
+  birthDate: string; // ISO, or "" when unknown (provisional athletes may have none)
+  currentClubId?: string | null; // atletas.current_club_id, when loaded by the caller
 }
 
 export interface IdentityMapping {
   fonte: string; // 'cbf', 'fpf', 'ferj', ...
   externalId: string; // athlete id within that source
-  bid: number; // canonical CBF bid it resolves to
+  bid: number; // canonical fb_id it resolves to
 }
 
 export interface IdentityCandidate {
@@ -37,6 +58,7 @@ export interface IdentityCandidate {
   cbfBid?: number | null; // 6-digit CBF bid when the source exposes it
   name: string;
   birthDate?: string | null; // ISO when known
+  clubId?: string | null; // the club this appearance was for, when resolvable
 }
 
 export type Resolution =
@@ -64,18 +86,28 @@ export function resolveAthleteIdentity(
   candidate: IdentityCandidate,
   ctx: { existing: ExistingAthlete[]; mappings: IdentityMapping[] },
 ): Resolution {
-  // 1. The source already carries the canonical CBF bid → identity is settled.
-  if (isValidBid(candidate.cbfBid)) {
-    return { kind: "bid", bid: candidate.cbfBid, confidence: "exact", reason: "source provided a CBF bid" };
-  }
-
-  // 2. This external id was resolved before → reuse the mapping (idempotent).
+  // 1. This external id was resolved before → reuse the mapping (idempotent).
+  //    Always checked first, even when a bid is present — a stale/reused external
+  //    id must never be second-guessed by a raw number.
   const mapped = ctx.mappings.find((m) => m.fonte === candidate.fonte && m.externalId === candidate.externalId);
   if (mapped) {
     return { kind: "mapped", bid: mapped.bid, confidence: "exact", reason: "existing atleta_fontes mapping" };
   }
 
-  // 3/4. Try to match by name (+ birth date). Never merge on weak evidence.
+  // 2. The source's bid already exists as a real atletas row → safe to trust
+  //    directly (a CBF-style bid is globally unique in the real world).
+  if (isValidBid(candidate.cbfBid)) {
+    const existsAsRow = ctx.existing.some((a) => a.bid === candidate.cbfBid);
+    if (existsAsRow) {
+      return { kind: "bid", bid: candidate.cbfBid, confidence: "exact", reason: "source-provided bid matches an existing athlete row" };
+    }
+  }
+
+  // 3/4. Try to match by name (+ birth date, or + current club when no birth date
+  // is available). Runs even when a brand-new cbfBid is present — that's what
+  // catches a cross-source duplicate (e.g. a FERJ-provisional athlete who later
+  // shows up in a CBF súmula under their real, never-seen-before bid) instead of
+  // trusting the new number blindly. Never merge on weak evidence.
   const wanted = normalizeName(candidate.name);
   const nameHits = wanted ? ctx.existing.filter((a) => normalizeName(a.name) === wanted) : [];
 
@@ -94,9 +126,26 @@ export function resolveAthleteIdentity(
     return { kind: "new", reason: "no bid, no mapping, no name+birth_date match" };
   }
 
-  // No birth date: cannot safely confirm identity. A name hit must go to review.
+  // No birth date: try name + current club as the fallback confirming signal
+  // (same trust level as name+birth_date — both are the only two tiers
+  // `scan-athlete-duplicates.ts` ever treats as "confirmed").
+  if (candidate.clubId) {
+    const clubHits = nameHits.filter((a) => a.currentClubId === candidate.clubId);
+    if (clubHits.length === 1) {
+      return { kind: "matched", bid: clubHits[0]!.bid, confidence: "matched", reason: "name + current club match (admin confirms)" };
+    }
+    if (clubHits.length > 1) {
+      return { kind: "ambiguous", candidates: clubHits.map((a) => a.bid), reason: "multiple athletes share name + current club" };
+    }
+  }
+
+  // Neither birth_date nor club confirms: cannot safely confirm identity. A name
+  // hit must go to review.
   if (nameHits.length > 0) {
-    return { kind: "ambiguous", candidates: nameHits.map((a) => a.bid), reason: "name matches but no birth_date to confirm" };
+    const reason = candidate.clubId
+      ? "name matches but neither birth_date nor club confirm"
+      : "name matches but no birth_date to confirm";
+    return { kind: "ambiguous", candidates: nameHits.map((a) => a.bid), reason };
   }
   return { kind: "new", reason: "no bid, no mapping, no name match" };
 }

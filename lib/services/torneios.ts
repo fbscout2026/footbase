@@ -100,7 +100,7 @@ async function loadTorneioStandingsAndScorers(
       ? client.from("clubes").select("id,name,webp_crest_url").in("id", clubIds)
       : Promise.resolve({ data: [], error: null }),
     partidaIds.length
-      ? client.from("atuacoes_sumula").select("bid_atleta,goals,atletas(name)").in("partida_id", partidaIds).gt("goals", 0)
+      ? client.from("atuacoes_sumula").select("fb_id_atleta,goals,atletas(name)").in("partida_id", partidaIds).gt("goals", 0)
       : Promise.resolve({ data: [], error: null }),
   ]);
   if (clubsRes.error) throw clubsRes.error;
@@ -120,8 +120,8 @@ async function loadTorneioStandingsAndScorers(
 
   const topScorers = computeTopScorers(
     (appearancesRes.data ?? []).map((a) => ({
-      bid: Number(a.bid_atleta),
-      name: one<{ name?: string }>(a.atletas as never)?.name ?? String(a.bid_atleta),
+      fbId: Number(a.fb_id_atleta),
+      name: one<{ name?: string }>(a.atletas as never)?.name ?? String(a.fb_id_atleta),
       goals: a.goals,
     })),
   ).slice(0, 10);

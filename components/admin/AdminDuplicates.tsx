@@ -76,8 +76,8 @@ function CandidateCard({ candidate: c, busy, onResolve }: {
     </div>
 
     <div className="mt-4 grid gap-3 sm:grid-cols-2">
-      <AthleteChoice athlete={c.a} busy={busy} onPick={() => onResolve(c.id, "merge", c.a.bid)} />
-      <AthleteChoice athlete={c.b} busy={busy} onPick={() => onResolve(c.id, "merge", c.b.bid)} />
+      <AthleteChoice athlete={c.a} busy={busy} onPick={() => onResolve(c.id, "merge", c.a.fbId)} />
+      <AthleteChoice athlete={c.b} busy={busy} onPick={() => onResolve(c.id, "merge", c.b.fbId)} />
     </div>
     <p className="mt-2 text-xs text-muted">{t("admin.duplicates.pickHint")}</p>
 
@@ -99,7 +99,7 @@ function AthleteChoice({ athlete: a, busy, onPick }: { athlete: DuplicateCandida
   return <div className="border border-border bg-background p-4">
     <p className="font-semibold">{a.name}</p>
     <p className="mt-1 text-xs text-muted">
-      {formatAthleteCode(a.bid)} · {a.currentCategory ?? "—"} · {a.currentClubName ?? "—"} · {a.totalMatches} {t("admin.duplicates.matches")}
+      {formatAthleteCode(a.fbId)} · {a.currentCategory ?? "—"} · {a.currentClubName ?? "—"} · {a.totalMatches} {t("admin.duplicates.matches")}
     </p>
     {a.birthDate && <p className="text-xs text-muted">{t("admin.duplicates.birth")}: {a.birthDate}</p>}
     <Button type="button" disabled={busy} onClick={onPick} className="mt-3 w-full">

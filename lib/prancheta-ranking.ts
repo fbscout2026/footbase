@@ -1,7 +1,7 @@
 import type { FormationSlot, TacticalPosition } from "./prancheta-formations";
 
 export interface RankingCandidate {
-  bid: number;
+  fbId: number;
   mainPosition: TacticalPosition;
   secondaryPosition: TacticalPosition | null;
   favoriteRating: number;
@@ -25,7 +25,7 @@ export interface RankedCandidate {
 
 export interface LineupSelection {
   slot: FormationSlot;
-  bid: number;
+  fbId: number;
   score: number;
 }
 
@@ -120,7 +120,7 @@ export function rankCandidatesForSlot(
       b.score - a.score
       || b.candidate.favoriteRating - a.candidate.favoriteRating
       || b.candidate.minutes - a.candidate.minutes
-      || a.candidate.bid - b.candidate.bid
+      || a.candidate.fbId - b.candidate.fbId
     );
 }
 
@@ -136,10 +136,10 @@ export function buildBestLineup(
 
   for (const slot of orderedByScarcity) {
     const ranked = rankCandidatesForSlot(candidates, slot);
-    const winner = ranked.find((entry) => !used.has(entry.candidate.bid));
+    const winner = ranked.find((entry) => !used.has(entry.candidate.fbId));
     if (!winner) continue;
-    used.add(winner.candidate.bid);
-    selections.push({ slot, bid: winner.candidate.bid, score: winner.score });
+    used.add(winner.candidate.fbId);
+    selections.push({ slot, fbId: winner.candidate.fbId, score: winner.score });
   }
 
   const order = new Map(slots.map((slot, index) => [slot.id, index]));
@@ -151,11 +151,11 @@ export function rankBench(
   starterBids: ReadonlySet<number>
 ): RankingCandidate[] {
   return candidates
-    .filter((candidate) => !starterBids.has(candidate.bid))
+    .filter((candidate) => !starterBids.has(candidate.fbId))
     .sort((a, b) =>
       b.favoriteRating - a.favoriteRating
       || b.evolution - a.evolution
       || b.minutes - a.minutes
-      || a.bid - b.bid
+      || a.fbId - b.fbId
     );
 }

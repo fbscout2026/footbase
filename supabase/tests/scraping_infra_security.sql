@@ -13,10 +13,10 @@ insert into auth.users (instance_id,id,aud,role,email,encrypted_password,email_c
 select set_config('request.jwt.claims','{"sub":"00000000-0000-4000-8000-000000000000","role":"service_role"}',true);
 update public.profiles set account_status='approved' where id='00000000-0000-4000-8000-000000000641';
 update public.profiles set role='admin',account_status='approved' where id='00000000-0000-4000-8000-000000000642';
-insert into public.atletas (bid,name,birth_date,main_position,current_category) values
+insert into public.atletas (fb_id,name,birth_date,main_position,current_category) values
 (9696960641,'Infra Test Athlete','2008-05-01','GK','SUB-17');
 insert into public.scraping_jobs (source,job_type,ref,payload) values ('CBF','sumula','5642183','{"ano":2026}');
-insert into public.atleta_fontes (bid,fonte,id_externo,confidence) values (9696960641,'cbf','9696960641','exact');
+insert into public.atleta_fontes (fb_id,fonte,id_externo,confidence) values (9696960641,'cbf','9696960641','exact');
 
 -- ----- Non-admin (authenticated) is fully blocked -----
 select set_config('request.jwt.claims','{"sub":"00000000-0000-4000-8000-000000000641","role":"authenticated"}',true);
@@ -29,7 +29,7 @@ do $$ begin
     raise exception 'SECURITY TEST FAILED: non-admin wrote scraping_jobs';
   exception when others then if sqlerrm like 'SECURITY TEST FAILED:%' then raise; end if; end;
   begin
-    insert into public.atleta_fontes (bid,fonte,id_externo) values (9696960641,'fpf','abc');
+    insert into public.atleta_fontes (fb_id,fonte,id_externo) values (9696960641,'fpf','abc');
     raise exception 'SECURITY TEST FAILED: non-admin wrote atleta_fontes';
   exception when others then if sqlerrm like 'SECURITY TEST FAILED:%' then raise; end if; end;
 end $$;
@@ -56,7 +56,7 @@ do $$ begin
     raise exception 'SECURITY TEST FAILED: duplicate job was allowed';
   exception when others then if sqlerrm like 'SECURITY TEST FAILED:%' then raise; end if; end;
   begin
-    insert into public.atleta_fontes (bid,fonte,id_externo) values (9696960641,'cbf','9696960641');
+    insert into public.atleta_fontes (fb_id,fonte,id_externo) values (9696960641,'cbf','9696960641');
     raise exception 'SECURITY TEST FAILED: duplicate external id mapping allowed';
   exception when others then if sqlerrm like 'SECURITY TEST FAILED:%' then raise; end if; end;
 end $$;

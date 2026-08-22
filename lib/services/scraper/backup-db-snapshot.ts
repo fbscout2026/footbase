@@ -18,6 +18,7 @@ import { readFileSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
 const TABLES = [
   "admin_promocoes",
   "agentes",
+  "atleta_duplicate_candidates",
   "atleta_fontes",
   "atletas",
   "atuacoes_sumula",

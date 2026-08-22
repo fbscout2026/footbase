@@ -54,13 +54,13 @@ export function AtletaComparisonMatrix({ atletas }: { atletas: AtletaRecord[] })
                 {t("compare.metric")}
               </th>
               {atletas.map((atleta) => (
-                <th key={atleta.bid} className="min-w-60 border-l border-border px-4 py-4 text-left align-top">
-                  <Link href={`/atletas/${atleta.bid}`} className="group flex items-center gap-3">
+                <th key={atleta.fbId} className="min-w-60 border-l border-border px-4 py-4 text-left align-top">
+                  <Link href={`/atletas/${atleta.fbId}`} className="group flex items-center gap-3">
                     <ClubeCrest src={atleta.currentClubCrestUrl} name={atleta.currentClubName ?? "?"} size={38} />
                     <span className="min-w-0">
                       <span className="block truncate font-bold group-hover:text-brand">{atleta.name}</span>
                       <span className="block text-xs font-normal text-muted">
-                        {formatAthleteCode(atleta.bid)} · {atleta.mainPosition ?? "—"} · {atleta.currentCategory ?? "—"}
+                        {formatAthleteCode(atleta.fbId)} · {atleta.mainPosition ?? "—"} · {atleta.currentCategory ?? "—"}
                       </span>
                     </span>
                   </Link>
@@ -111,10 +111,10 @@ function ComparisonGroupRows({
             </th>
             {atletas.map((atleta) => {
               const value = metric.value(atleta);
-              const isWinner = winners.has(atleta.bid);
+              const isWinner = winners.has(atleta.fbId);
               return (
                 <td
-                  key={atleta.bid}
+                  key={atleta.fbId}
                   className={cn(
                     "border-l border-border px-4 py-3 font-semibold",
                     isWinner && "bg-brand/10 text-brand"

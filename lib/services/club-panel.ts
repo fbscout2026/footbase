@@ -27,7 +27,7 @@ export interface ManagedClubRecord {
 }
 
 export interface ClubPanelAthlete {
-  bid: number;
+  fbId: number;
   name: string;
   nickname: string | null;
   position: string | null;
@@ -56,7 +56,7 @@ export interface ClubCategoryRecord {
 
 export interface ClubRosterRequestRecord {
   id: string;
-  bid: number | null;
+  fbId: number | null;
   informedBid: string | null;
   informedName: string | null;
   action: RosterRequestAction;
@@ -90,7 +90,7 @@ export interface ClubDivergenceRecord {
 
 export interface ClubFavoriteRecord {
   id: string;
-  bid: number;
+  fbId: number;
   rating: number;
   notes: string | null;
   athleteName: string;
@@ -128,13 +128,13 @@ export async function findClaimedClubId(client: SupabaseClient, userId: string):
 export async function loadClubPanel(client: SupabaseClient, clubId: string, access: ClubPanelAccess): Promise<ClubPanelData> {
   const [clubResult, squadResult, categoriesResult, tournamentsResult, rosterResult, correctionResult, divergenceResult, favoritesResult, categoryOrderResult] = await Promise.all([
     client.from("clubes").select(CLUB_FIELDS).eq("id", clubId).single(),
-    client.from("atletas").select("bid,name,apelido,main_position,current_category,contract_end_date").eq("current_club_id", clubId).order("current_category").order("name"),
+    client.from("atletas").select("fb_id,name,apelido,main_position,current_category,contract_end_date").eq("current_club_id", clubId).order("current_category").order("name"),
     client.from("club_categorias").select("id,category,status,display_order,source_status").eq("club_id", clubId).order("display_order").order("category"),
     client.from("club_categoria_torneios").select("id,club_category_id,declared_name,season,start_date,end_date,status,source_status,torneios(name)").order("created_at", { ascending: false }),
-    client.from("club_elenco_solicitacoes").select("id,bid_atleta,informed_bid,informed_name,action,current_category_snapshot,proposed_category,justification,evidence_url,status,created_at").eq("club_id", clubId).order("created_at", { ascending: false }),
+    client.from("club_elenco_solicitacoes").select("id,fb_id_atleta,informed_bid,informed_name,action,current_category_snapshot,proposed_category,justification,evidence_url,status,created_at").eq("club_id", clubId).order("created_at", { ascending: false }),
     client.from("club_correction_requests").select("id,field_name,current_value,suggested_value,reason,evidence_url,status,created_at").eq("club_id", clubId).order("created_at", { ascending: false }),
     client.from("club_divergencias").select("id,domain,field_name,official_source,status,created_at").eq("club_id", clubId).order("created_at", { ascending: false }),
-    client.from("favoritos").select("id,bid_atleta,nota,notas,atletas(name,apelido,main_position,current_category)").order("nota", { ascending: false }),
+    client.from("favoritos").select("id,fb_id_atleta,nota,notas,atletas(name,apelido,main_position,current_category)").order("nota", { ascending: false }),
     client.from("categoria_ordem").select("categoria").order("rank"),
   ]);
   for (const result of [clubResult, squadResult, categoriesResult, tournamentsResult, rosterResult, correctionResult, divergenceResult, favoritesResult, categoryOrderResult]) {
@@ -154,7 +154,7 @@ export async function loadClubPanel(client: SupabaseClient, clubId: string, acce
       crestUrl: row.crest_storage_path ? `/api/clube/crest?club=${row.id}` : row.webp_crest_url as string | null,
       claimStatus: String(row.claim_status), claimedBy: row.reivindicado_por as string | null,
     },
-    squad: (squadResult.data ?? []).map((item) => ({ bid: Number(item.bid), name: item.name, nickname: item.apelido, position: item.main_position, category: item.current_category, contractEndDate: item.contract_end_date })),
+    squad: (squadResult.data ?? []).map((item) => ({ fbId: Number(item.fb_id), name: item.name, nickname: item.apelido, position: item.main_position, category: item.current_category, contractEndDate: item.contract_end_date })),
     categories: ((categoriesResult.data ?? []) as Array<Record<string, unknown>>).map((item) => ({
       id: String(item.id), category: String(item.category), status: item.status as "active" | "archived", displayOrder: Number(item.display_order), sourceStatus: item.source_status as SourceStatus,
       tournaments: tournaments.filter((t) => t.club_category_id === item.id).map((t) => {
@@ -162,12 +162,12 @@ export async function loadClubPanel(client: SupabaseClient, clubId: string, acce
         return { id: String(t.id), name: String((official as { name?: string } | null)?.name ?? t.declared_name ?? ""), season: String(t.season), startDate: t.start_date as string | null, endDate: t.end_date as string | null, status: t.status as TournamentStatus, sourceStatus: t.source_status as SourceStatus };
       }),
     })),
-    rosterRequests: (rosterResult.data ?? []).map((item) => ({ id: item.id, bid: item.bid_atleta === null ? null : Number(item.bid_atleta), informedBid: item.informed_bid, informedName: item.informed_name, action: item.action as RosterRequestAction, currentCategory: item.current_category_snapshot, proposedCategory: item.proposed_category, justification: item.justification, evidenceUrl: item.evidence_url, status: item.status as ReviewStatus, createdAt: item.created_at })),
+    rosterRequests: (rosterResult.data ?? []).map((item) => ({ id: item.id, fbId: item.fb_id_atleta === null ? null : Number(item.fb_id_atleta), informedBid: item.informed_bid, informedName: item.informed_name, action: item.action as RosterRequestAction, currentCategory: item.current_category_snapshot, proposedCategory: item.proposed_category, justification: item.justification, evidenceUrl: item.evidence_url, status: item.status as ReviewStatus, createdAt: item.created_at })),
     corrections: (correctionResult.data ?? []).map((item) => ({ id: item.id, fieldName: item.field_name, currentValue: item.current_value, suggestedValue: item.suggested_value, reason: item.reason, evidenceUrl: item.evidence_url, status: item.status as ReviewStatus, createdAt: item.created_at })),
     divergences: (divergenceResult.data ?? []).map((item) => ({ id: item.id, domain: item.domain as ClubDivergenceRecord["domain"], fieldName: item.field_name, officialSource: item.official_source, status: item.status as ClubDivergenceRecord["status"], createdAt: item.created_at })),
     favorites: (favoritesResult.data ?? []).map((item) => {
       const athlete = Array.isArray(item.atletas) ? item.atletas[0] : item.atletas;
-      return { id: item.id, bid: Number(item.bid_atleta), rating: item.nota ?? 50, notes: item.notas, athleteName: athlete?.name ?? formatAthleteCode(Number(item.bid_atleta)), athleteNickname: athlete?.apelido ?? null, position: athlete?.main_position ?? null, category: athlete?.current_category ?? null };
+      return { id: item.id, fbId: Number(item.fb_id_atleta), rating: item.nota ?? 50, notes: item.notas, athleteName: athlete?.name ?? formatAthleteCode(Number(item.fb_id_atleta)), athleteNickname: athlete?.apelido ?? null, position: athlete?.main_position ?? null, category: athlete?.current_category ?? null };
     }),
     availableCategories: (categoryOrderResult.data ?? []).map((item) => item.categoria),
   };
@@ -193,8 +193,8 @@ export async function createClubTournament(client: SupabaseClient, input: { cate
   if (error) throw error;
 }
 
-export async function createRosterRequest(client: SupabaseClient, input: { clubId: string; userId: string; bid: number | null; informedBid: string | null; informedName: string | null; action: RosterRequestAction; proposedCategory: string | null; justification: string; evidenceUrl: string | null }): Promise<void> {
-  const { error } = await client.from("club_elenco_solicitacoes").insert({ club_id: input.clubId, requested_by: input.userId, bid_atleta: input.bid, informed_bid: input.informedBid, informed_name: input.informedName, action: input.action, proposed_category: input.proposedCategory, justification: input.justification, evidence_url: input.evidenceUrl });
+export async function createRosterRequest(client: SupabaseClient, input: { clubId: string; userId: string; fbId: number | null; informedBid: string | null; informedName: string | null; action: RosterRequestAction; proposedCategory: string | null; justification: string; evidenceUrl: string | null }): Promise<void> {
+  const { error } = await client.from("club_elenco_solicitacoes").insert({ club_id: input.clubId, requested_by: input.userId, fb_id_atleta: input.fbId, informed_bid: input.informedBid, informed_name: input.informedName, action: input.action, proposed_category: input.proposedCategory, justification: input.justification, evidence_url: input.evidenceUrl });
   if (error) throw error;
 }
 

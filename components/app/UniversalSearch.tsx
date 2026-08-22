@@ -42,17 +42,19 @@ export function UniversalSearch() {
         if (active) setAtletaResults([]);
         return;
       }
-      // BID is numeric — `ilike` on a bigint column errors, so a purely-numeric
-      // query searches by exact bid instead of by name substring.
-      const isNumeric = /^\d+$/.test(safeQuery);
-      const q = createClient().from("atletas").select("bid,name,main_position,current_category").order("name").limit(6);
-      const { data } = isNumeric ? await q.eq("bid", Number(safeQuery)) : await q.ilike("name", `%${safeQuery}%`);
+      // fb_id is numeric — `ilike` on a bigint column errors, so a purely-numeric
+      // query (optionally prefixed with the displayed "FB-" code) searches by
+      // exact fb_id instead of by name substring.
+      const fbIdDigits = safeQuery.replace(/^fb-?/i, "");
+      const isNumeric = /^\d+$/.test(fbIdDigits);
+      const q = createClient().from("atletas").select("fb_id,name,main_position,current_category").order("name").limit(6);
+      const { data } = isNumeric ? await q.eq("fb_id", Number(fbIdDigits)) : await q.ilike("name", `%${safeQuery}%`);
       if (active) {
         setAtletaResults(
           (data ?? []).map((a) => ({
-            href: `/atletas/${a.bid}`,
+            href: `/atletas/${a.fb_id}`,
             primary: a.name,
-            secondary: [a.main_position, a.current_category, formatAthleteCode(a.bid)].filter(Boolean).join(" · "),
+            secondary: [a.main_position, a.current_category, formatAthleteCode(a.fb_id)].filter(Boolean).join(" · "),
           })),
         );
       }

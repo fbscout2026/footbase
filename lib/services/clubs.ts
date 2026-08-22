@@ -19,7 +19,7 @@ export interface ClubSummaryRecord {
 }
 
 export interface ClubSquadMemberRecord {
-  bid: number;
+  fbId: number;
   name: string;
   nickname: string | null;
   mainPosition: string | null;
@@ -101,7 +101,7 @@ export async function loadClubProfile(
 
   const [squadResult, requestResult, pendingResult, claimedResult] = await Promise.all([
     client.from("atletas")
-      .select("bid,name,apelido,main_position,current_category,contract_end_date")
+      .select("fb_id,name,apelido,main_position,current_category,contract_end_date")
       .eq("current_club_id", clubId).order("name"),
     client.from("solicitacoes_reivindicacao")
       .select("id,documento_url,mensagem,status,created_at")
@@ -131,7 +131,7 @@ export async function loadClubProfile(
     : null;
 
   const squad = (squadResult.data ?? []).map((athlete) => ({
-    bid: Number(athlete.bid),
+    fbId: Number(athlete.fb_id),
     name: athlete.name,
     nickname: athlete.apelido,
     mainPosition: athlete.main_position,
@@ -161,7 +161,7 @@ export async function createClubClaim(
   const { data, error } = await client.from("solicitacoes_reivindicacao").insert({
     tipo: "clube",
     clube_id: input.clubId,
-    bid_atleta: null,
+    fb_id_atleta: null,
     requested_by: input.userId,
     documento_url: input.documentUrl,
     mensagem: input.message,

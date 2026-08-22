@@ -88,9 +88,9 @@ export async function ingestMatch(admin: SupabaseClient, parsed: ParsedMatch, op
   // BID + name and have the birth date backfilled later). An appearance is only
   // skipped if there is no athlete record at all to seed from.
   const apBids = [...new Set(parsed.appearances.map((a) => a.bid))];
-  const { data: existing, error: existErr } = await admin.from("atletas").select("bid").in("bid", apBids);
+  const { data: existing, error: existErr } = await admin.from("atletas").select("fb_id").in("fb_id", apBids);
   if (existErr) { report.errors.push(`athlete lookup failed: ${existErr.message}`); return report; }
-  const existingBids = new Set((existing ?? []).map((r) => Number(r.bid)));
+  const existingBids = new Set((existing ?? []).map((r) => Number(r.fb_id)));
   const seedable = new Map(parsed.athletes.map((a) => [a.bid, a]));
   const resolvableBids = new Set<number>();
   for (const bid of apBids) {
@@ -172,16 +172,16 @@ export async function ingestMatch(admin: SupabaseClient, parsed: ParsedMatch, op
         if (a.nacionalidade) fields.nacionalidade = a.nacionalidade;
         if (a.mainPosition) fields.main_position = a.mainPosition;
         if (Object.keys(fields).length > 0) {
-          const upd = await admin.from("atletas").update(fields).eq("bid", a.bid);
+          const upd = await admin.from("atletas").update(fields).eq("fb_id", a.bid);
           if (upd.error) throw upd.error;
         }
         continue;
       }
       // New athlete: birth_date may be null (backfilled later); nacionalidade keeps
       // its column default when the source doesn't provide one.
-      const seed: Record<string, unknown> = { bid: a.bid, name: a.name, birth_date: a.birthDate ?? null, main_position: a.mainPosition ?? null };
+      const seed: Record<string, unknown> = { fb_id: a.bid, name: a.name, birth_date: a.birthDate ?? null, main_position: a.mainPosition ?? null };
       if (a.nacionalidade) seed.nacionalidade = a.nacionalidade;
-      const ins = await admin.from("atletas").insert(seed).select("bid").single();
+      const ins = await admin.from("atletas").insert(seed).select("fb_id").single();
       if (ins.error) throw ins.error;
       report.athletesSeeded++;
     }
@@ -202,12 +202,12 @@ export async function ingestMatch(admin: SupabaseClient, parsed: ParsedMatch, op
     // of only used transiently.
     const resolvableAppearances = parsed.appearances.filter((a) => resolvableBids.has(a.bid));
     const rows = resolvableAppearances.map((a) => ({
-      partida_id: partidaId, bid_atleta: a.bid, player_category: a.playerCategory, minutes_played: a.minutesPlayed,
+      partida_id: partidaId, fb_id_atleta: a.bid, player_category: a.playerCategory, minutes_played: a.minutesPlayed,
       goals: a.goals, assists: a.assists, yellow_cards: a.yellowCards, red_cards: a.redCards, clean_sheet: a.cleanSheet,
       club_id: a.side ? clubIds[a.side] : null,
     }));
     if (rows.length > 0) {
-      const ins = await admin.from("atuacoes_sumula").upsert(rows, { onConflict: "partida_id,bid_atleta" }).select("id,bid_atleta");
+      const ins = await admin.from("atuacoes_sumula").upsert(rows, { onConflict: "partida_id,fb_id_atleta" }).select("id,fb_id_atleta");
       if (ins.error) throw ins.error;
       report.appearancesUpserted = rows.length;
 
@@ -215,7 +215,7 @@ export async function ingestMatch(admin: SupabaseClient, parsed: ParsedMatch, op
       // from the súmula's own "Motivo:" text. Delete-then-insert scoped to
       // just these atuações, so reprocessing the same match (a correction,
       // or the Session 55 historical backfill) never duplicates rows.
-      const atuacaoIdByBid = new Map((ins.data ?? []).map((r) => [Number(r.bid_atleta), r.id as string]));
+      const atuacaoIdByBid = new Map((ins.data ?? []).map((r) => [Number(r.fb_id_atleta), r.id as string]));
       const cardRows: { atuacao_id: string; card_type: "yellow" | "red"; reason: string }[] = [];
       for (const a of resolvableAppearances) {
         const atuacaoId = atuacaoIdByBid.get(a.bid);
@@ -252,9 +252,9 @@ export async function ingestMatch(admin: SupabaseClient, parsed: ParsedMatch, op
       const clubId = clubIds[a.side];
       const { data: newer } = await admin
         .from("atuacoes_sumula").select("id, partidas_sumula!inner(match_date)")
-        .eq("bid_atleta", a.bid).gt("partidas_sumula.match_date", parsed.matchDate).limit(1).maybeSingle();
+        .eq("fb_id_atleta", a.bid).gt("partidas_sumula.match_date", parsed.matchDate).limit(1).maybeSingle();
       if (newer) continue; // a more recent match already set the current club/category
-      const upd = await admin.from("atletas").update({ current_club_id: clubId, current_category: parsed.matchCategory }).eq("bid", a.bid);
+      const upd = await admin.from("atletas").update({ current_club_id: clubId, current_category: parsed.matchCategory }).eq("fb_id", a.bid);
       if (upd.error) throw upd.error;
     }
 
@@ -267,8 +267,8 @@ export async function ingestMatch(admin: SupabaseClient, parsed: ParsedMatch, op
     // past match's category against the athlete's CURRENT category, so it
     // needs that column already reflecting this match before it computes.
     if (rows.length > 0) {
-      for (const bid of new Set(rows.map((r) => r.bid_atleta))) {
-        const { error: statsErr } = await admin.rpc("recompute_atleta_stats", { p_bid: bid });
+      for (const bid of new Set(rows.map((r) => r.fb_id_atleta))) {
+        const { error: statsErr } = await admin.rpc("recompute_atleta_stats", { p_fb_id: bid });
         if (statsErr) report.errors.push(`stats recompute failed for bid ${bid}: ${statsErr.message}`);
       }
     }

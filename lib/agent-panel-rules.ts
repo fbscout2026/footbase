@@ -6,8 +6,13 @@ export const AGENT_EDITABLE_PROFILE_FIELDS = [
   "full_name", "agency_name", "markets", "instagram", "phone", "contact_email", "bio",
 ] as const;
 
+// Session 56 ("FB-ID: chave suprema") — `fb_id` deliberately excluded, on
+// explicit user confirmation. It's an internal permanent identity now, not "a
+// fact about the athlete" an agent could know/correct; a wrong source-side
+// number is an atleta_fontes/admin curation concern, never an agent
+// correction request.
 export const CORRECTION_FIELDS = [
-  "bid", "fifa_id", "name", "birth_date", "nacionalidade", "tem_passaporte", "passaporte",
+  "fifa_id", "name", "birth_date", "nacionalidade", "tem_passaporte", "passaporte",
   "main_position", "inicio_carreira", "contract_end_date", "current_club_id", "current_category",
   "experiencia_internacional", "jogos_suspenso", "performance_data",
 ] as const;
