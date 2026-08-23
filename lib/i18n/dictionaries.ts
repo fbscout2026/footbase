@@ -49,12 +49,12 @@ const pt: Dict = {
   "pagination.next": "Próxima página",
 
   // hero
-  "hero.eyebrow": "Dados extraídos direto das súmulas oficiais",
+  "hero.eyebrow": "Dados extraídos direto das fontes oficiais",
   "hero.headlineLead": "O talento da base brasileira, ",
   "hero.headlineHighlight": "finalmente organizado em dados.",
   "hero.sub": "Busque atletas Sub-11 a Sub-20 pelo FB-ID, acompanhe vencimento de contrato e descubra quem já joga acima da categoria — antes da concorrência.",
   "hero.ctaSecondary": "Ver como funciona",
-  "hero.trust": "Acesso por curadoria manual · CBF e federações estaduais",
+  "hero.trust": "Acesso por curadoria manual",
   "hero.searchPlaceholder": "FB-ID, nome, clube ou torneio...",
   "hero.cardStatusActive": "Ativo",
   "hero.cardPosition": "Atacante",
@@ -121,6 +121,7 @@ const pt: Dict = {
   "auth.login.errGeneric": "Não foi possível conectar. Tente novamente em instantes.",
   "auth.login.rejected": "Sua conta foi rejeitada. Fale com a curadoria Footbase.",
   "auth.login.forgotPassword": "Esqueci minha senha",
+  "auth.login.otherDeviceNotice": "Sua sessão foi encerrada porque sua conta foi acessada em outro dispositivo.",
 
   // auth — forgot password (request)
   "auth.forgotPassword.title": "Esqueci minha senha",
@@ -605,12 +606,12 @@ const en: Dict = {
   "pagination.previous": "Previous page",
   "pagination.next": "Next page",
 
-  "hero.eyebrow": "Data pulled straight from official match sheets",
+  "hero.eyebrow": "Data pulled straight from official sources",
   "hero.headlineLead": "Brazilian youth talent, ",
   "hero.headlineHighlight": "finally organized into data.",
   "hero.sub": "Search Sub-11 to Sub-20 athletes by their FB-ID, track contract expirations and spot who's already playing above their category — before the competition.",
   "hero.ctaSecondary": "See how it works",
-  "hero.trust": "Manual-curation access · CBF and state federations",
+  "hero.trust": "Manual-curation access",
   "hero.searchPlaceholder": "FB-ID, name, club or tournament...",
   "hero.cardStatusActive": "Active",
   "hero.cardPosition": "Forward",
@@ -671,6 +672,7 @@ const en: Dict = {
   "auth.login.errGeneric": "Couldn't connect. Please try again shortly.",
   "auth.login.rejected": "Your account was rejected. Contact Footbase curation.",
   "auth.login.forgotPassword": "Forgot my password",
+  "auth.login.otherDeviceNotice": "Your session ended because your account was accessed from another device.",
 
   "auth.forgotPassword.title": "Forgot my password",
   "auth.forgotPassword.subtitle": "Enter your registered e-mail to receive a reset link.",
@@ -1097,12 +1099,12 @@ const es: Dict = {
   "pagination.previous": "Página anterior",
   "pagination.next": "Página siguiente",
 
-  "hero.eyebrow": "Datos extraídos directo de las actas oficiales",
+  "hero.eyebrow": "Datos extraídos directo de fuentes oficiales",
   "hero.headlineLead": "El talento de la base brasileña, ",
   "hero.headlineHighlight": "por fin organizado en datos.",
   "hero.sub": "Busca atletas Sub-11 a Sub-20 por su FB-ID, controla el vencimiento de contratos y descubre quién ya juega por encima de su categoría — antes que la competencia.",
   "hero.ctaSecondary": "Ver cómo funciona",
-  "hero.trust": "Acceso por curaduría manual · CBF y federaciones estatales",
+  "hero.trust": "Acceso por curaduría manual",
   "hero.searchPlaceholder": "FB-ID, nombre, club o torneo...",
   "hero.cardStatusActive": "Activo",
   "hero.cardPosition": "Delantero",
@@ -1163,6 +1165,7 @@ const es: Dict = {
   "auth.login.errGeneric": "No se pudo conectar. Inténtalo de nuevo en instantes.",
   "auth.login.rejected": "Tu cuenta fue rechazada. Contacta a la curaduría Footbase.",
   "auth.login.forgotPassword": "Olvidé mi contraseña",
+  "auth.login.otherDeviceNotice": "Tu sesión terminó porque tu cuenta fue accedida desde otro dispositivo.",
 
   "auth.forgotPassword.title": "Olvidé mi contraseña",
   "auth.forgotPassword.subtitle": "Ingresa tu correo registrado para recibir el enlace de restablecimiento.",

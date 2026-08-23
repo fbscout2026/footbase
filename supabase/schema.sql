@@ -132,6 +132,7 @@ create table if not exists profiles (
   whatsapp text,
   organization text,                     -- Empresa / Agência / Clube informed at signup
   password_reset_used boolean not null default false, -- self-service reset: one lifetime use
+  active_session_id uuid,                -- Session 57: single active device — see middleware.ts
   created_at timestamptz not null default now()
 );
 
@@ -187,9 +188,9 @@ begin
     end if;
   end if;
 
-  if (to_jsonb(new) - array['full_name', 'whatsapp', 'organization', 'password_reset_used']::text[])
+  if (to_jsonb(new) - array['full_name', 'whatsapp', 'organization', 'password_reset_used', 'active_session_id']::text[])
     is distinct from
-    (to_jsonb(old) - array['full_name', 'whatsapp', 'organization', 'password_reset_used']::text[])
+    (to_jsonb(old) - array['full_name', 'whatsapp', 'organization', 'password_reset_used', 'active_session_id']::text[])
   then
     raise exception 'users may only edit full_name, whatsapp and organization';
   end if;

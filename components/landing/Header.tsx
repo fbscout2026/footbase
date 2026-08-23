@@ -21,7 +21,7 @@ export function Header() {
       <div className="flex h-16 w-full items-center justify-between gap-2 px-2 sm:px-6 lg:px-10 xl:px-16 2xl:px-24">
         <Link href="/" className="shrink-0">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/footbase-logo.svg" alt="Footbase" width="1890" height="277" className="h-auto w-24 sm:w-40" />
+          <img src="/footbase-logo.svg" alt="Footbase" width="1890" height="277" className="h-auto w-28 sm:w-48" />
         </Link>
 
         <nav className="hidden items-center gap-4 md:flex lg:gap-8">

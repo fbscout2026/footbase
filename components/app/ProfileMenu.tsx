@@ -33,6 +33,10 @@ export function ProfileMenu({
   async function logout() {
     const supabase = createClient();
     await supabase.auth.signOut();
+    // Hygiene only (Session 57) — `profiles.active_session_id` in the DB is the real
+    // source of truth for the single-device check; clearing this cookie just avoids a
+    // stale value lingering in this browser.
+    document.cookie = "fb_session_id=; path=/; max-age=0";
     router.push("/login");
     router.refresh();
   }
