@@ -75,7 +75,7 @@ interface CbfSourceConfig {
   tabelaPhaseUrls: string[]; // one per phase (1ª Fase, Quartas, ...) — from the competition's tabela page
 }
 
-interface FerjSourceConfig {
+export interface FerjSourceConfig {
   kind: "ferj";
   label: string;
   ano: number;
@@ -626,7 +626,7 @@ export async function ingestOneFerjMatch(
   return { outcome, detail, sourceUrl: sumulaPdfUrl };
 }
 
-async function processFerjSource(admin: SupabaseClient, cfg: FerjSourceConfig, dryRun: boolean, touch: () => void): Promise<ExecutorItemResult[]> {
+export async function processFerjSource(admin: SupabaseClient, cfg: FerjSourceConfig, dryRun: boolean, touch: () => void): Promise<ExecutorItemResult[]> {
   const results: ExecutorItemResult[] = [];
 
   const state = await loadFerjIdentityState(admin);

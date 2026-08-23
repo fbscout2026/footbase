@@ -56,11 +56,19 @@ function normalizeCategoriaLabel(raw: string): string | null {
 
 const IN_SCOPE_CATEGORIES = new Set(Array.from({ length: 10 }, (_, i) => `SUB-${i + 11}`)); // SUB-11..SUB-20
 
-// One match card: id (href), then the "campeonato | categoria | série" label block.
+// One match card: id (href), then the "campeonato | categoria [| série]" label block.
 // Confirmed live: the label spans read literally `<span>|<!-- --> <!-- -->{text}</span>`
 // (React's `{" "}` comment markers around the "|" separator) for the 2nd/3rd spans.
+// The 3rd (série) span is OPTIONAL — confirmed live (Session 57): some real
+// campeonatos ("Padrao", "Guilherme Embry", both with real Sub-16/Sub-20 matches
+// and published súmulas) render only 2 spans (campeonato + categoria), no série at
+// all. The original regex required exactly 3 spans, so it silently never matched
+// these cards at all — a real discovery gap, not a category-filter exclusion (the
+// categoria was always in scope, the card just never got extracted). `</div>` is
+// anchored right after the optional 3rd span so the non-greedy `[\s\S]*?` can't
+// jump past a missing 3rd span into the NEXT card's spans.
 const CARD_RE =
-  /href="\/partidas\/(\d+)"[\s\S]*?<div class="text-gray-700 uppercase text-14 my-5"><span>([^<]+)<\/span><span>[\s\S]*?-->([^<]+)<\/span><span>[\s\S]*?-->([^<]+)<\/span>/g;
+  /href="\/partidas\/(\d+)"[\s\S]*?<div class="text-gray-700 uppercase text-14 my-5"><span>([^<]+)<\/span><span>[\s\S]*?-->([^<]+)<\/span>(?:<span>[\s\S]*?-->([^<]+)<\/span>)?<\/div>/g;
 
 /** Parses one `/partidas?...` listing page's match cards, already filtered to
  * SUB-11..SUB-20 masculino non-CBF-national. Does not fetch anything else. */
@@ -75,7 +83,7 @@ export function parseFerjPartidasListing(html: string): FerjMatchRef[] {
 
     const campeonato = m[2]!.trim();
     const categoriaRaw = m[3]!.trim();
-    const serie = m[4]!.trim();
+    const serie = (m[4] ?? "").trim(); // absent for campeonatos with no série tier
 
     if (NATIONAL_CAMPEONATO_RE.test(campeonato)) continue;
     if (FEMININO_RE.test(campeonato) || FEMININO_RE.test(categoriaRaw) || FEMININO_RE.test(serie)) continue;

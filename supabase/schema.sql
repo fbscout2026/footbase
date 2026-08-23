@@ -1075,8 +1075,11 @@ alter table solicitacoes_reivindicacao enable row level security;
 alter table solicitacoes_correcao enable row level security;
 
 -- categoria_ordem: static reference data.
+-- Wrapped in `(select ...)` (Session 57 — same InitPlan fix as clubes/torneios
+-- below, applied here belatedly after a dashboard perf investigation found
+-- this table and the 3 below it still on the old unwrapped form).
 create policy categoria_ordem_select_approved on categoria_ordem
-  for select using (private.is_approved() or private.is_admin());
+  for select using ((select private.is_approved()) or (select private.is_admin()));
 create policy categoria_ordem_write_admin on categoria_ordem
   for all using (private.is_admin()) with check (private.is_admin());
 
@@ -1107,15 +1110,15 @@ create policy torneios_write_admin on torneios
   for all using (private.is_admin()) with check (private.is_admin());
 
 create policy confederacoes_select_approved on confederacoes
-  for select using (private.is_approved() or private.is_admin());
+  for select using ((select private.is_approved()) or (select private.is_admin()));
 create policy confederacoes_write_admin on confederacoes
   for all using (private.is_admin()) with check (private.is_admin());
 create policy paises_select_approved on paises
-  for select using (private.is_approved() or private.is_admin());
+  for select using ((select private.is_approved()) or (select private.is_admin()));
 create policy paises_write_admin on paises
   for all using (private.is_admin()) with check (private.is_admin());
 create policy federacoes_select_approved on federacoes
-  for select using (private.is_approved() or private.is_admin());
+  for select using ((select private.is_approved()) or (select private.is_admin()));
 create policy federacoes_write_admin on federacoes
   for all using (private.is_admin()) with check (private.is_admin());
 
