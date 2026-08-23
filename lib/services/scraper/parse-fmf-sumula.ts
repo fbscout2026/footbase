@@ -99,21 +99,56 @@ function provisionalSourceKey(name: string): string {
   return `fmf-club:${slug(name)}`;
 }
 
-// Same recovery heuristic as CBF's `nomeCompletoFromGlued` (accent-insensitive
-// repeat detection) — kept as a local copy rather than a shared import so each
-// adapter stays independently readable/testable, per the project's one-adapter-
-// per-source convention.
+// Same full recovery heuristic as CBF's `nomeCompletoFromGlued` (kept as a local
+// copy rather than a shared import so each adapter stays independently
+// readable/testable, per the project's one-adapter-per-source convention) — three
+// patterns, tried in order: (1) an ellipsis/truncation marker, (2) the real name
+// starting at the last capital-then-lowercase transition in the blob, (3) an
+// accent/case-insensitive repeat of the blob's own prefix. Upgraded from a
+// repeat-only check (Session 57 — the repeat-only version never even tried the
+// ellipsis/transition patterns that real broken names in production needed).
 function foldForCompare(s: string): string {
   return s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 }
 
 function nomeCompletoFromGlued(blob: string): string {
-  const folded = foldForCompare(blob);
-  for (let i = 2; i <= Math.floor(blob.length / 2); i++) {
-    if (folded.slice(i).startsWith(folded.slice(0, i)) && folded[i - 1] !== folded[i]) {
-      return cleanName(blob.slice(i));
+  const ellipsisAt = blob.search(/\.\.\.|…/);
+  if (ellipsisAt !== -1) {
+    const after = blob.slice(ellipsisAt).replace(/^(?:\.\.\.|…)\s*/, "");
+    if (after.trim()) return cleanName(after);
+    blob = blob.slice(0, ellipsisAt);
+  }
+
+  // Strip leading parsing noise (digit/comma/stray punctuation) that would break
+  // pattern 3's prefix-repeat check — same fix as CBF's version, see its comment.
+  blob = blob.replace(/^[\d\s,.\-]+/, "");
+
+  let patternAMatch: string | null = null;
+  for (let i = 1; i < blob.length - 1; i++) {
+    const prev = blob[i - 1]!;
+    const cur = blob[i]!;
+    const next = blob[i + 1]!;
+    if (/[A-ZÀ-Ý]/.test(cur) && /[a-zà-ÿ]/.test(next) && /[a-zà-ÿA-ZÀ-Ý0-9]/.test(prev)) {
+      const candidate = cleanName(blob.slice(i));
+      if (candidate.split(" ").filter(Boolean).length >= 2 || candidate.length >= 8) {
+        patternAMatch = candidate;
+      }
     }
   }
+  if (patternAMatch !== null) return patternAMatch;
+
+  // Repeated prefix must be at least 3 characters (Session 57 — a 2-char run
+  // of the same character trivially satisfies the repeat check but is never a
+  // real apelido, e.g. "XX" inside a redacted/placeholder blob).
+  const folded = foldForCompare(blob);
+  for (let i = 3; i <= Math.floor(blob.length / 2); i++) {
+    if (folded.slice(i).startsWith(folded.slice(0, i)) && /[A-ZÀ-Ý]/.test(blob[i]!)) {
+      const candidate = cleanName(blob.slice(i));
+      if (candidate.split(" ").filter(Boolean).length < 2 && candidate.length < 8) continue;
+      return candidate;
+    }
+  }
+
   return cleanName(blob);
 }
 

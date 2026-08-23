@@ -92,20 +92,69 @@ const ROW = /(\d{1,2})(.+?)([TRC])([PA])(\d{5,7})/g;
 // The apelido is not always a literal prefix of the full name (e.g. "BENTO" for
 // "ARTHUR BENTO TRINDADE FIUZA" — a middle-name nickname, not the first word), so
 // there is no general way to recover the exact apelido/nome-completo split from the
-// glued string alone. Best-effort: if the glued string DOES repeat its own prefix
-// (the common case — "LUCASLUCAS MONTALVÃO ARAÚJO", "JOÃO GABRIELJOÃO GABRIEL..."),
-// strip the duplicated apelido and keep the real full name. Otherwise keep the glued
-// string as-is (still usable: `buildFerjSumula` matches roster→event players by
-// checking the glued string ENDS WITH the event's full name, which works regardless
-// of whether this cleanup succeeds — the split is a display-name nicety, not load-
-// bearing for identity/stat matching).
+// glued string alone. Best-effort, same full heuristic as CBF's `nomeCompletoFromGlued`
+// (kept as a local copy per the project's one-adapter-per-source convention, not a
+// shared import) — three patterns, tried in order:
+//  1. An ellipsis/truncation marker ("...", "…") — everything after it is the real name.
+//  2. A genuinely different apelido glued with no separator — the real name starts at
+//     the last capital-then-lowercase transition in the blob.
+//  3. The apelido is an accent/case-insensitive repeat of the start of the full name
+//     ("LUCASLUCAS MONTALVÃO ARAÚJO", "JOÃO GABRIELJOÃO GABRIEL...").
+// When none match (e.g. "BENTOARTHUR BENTO TRINDADE FIUZA" — "BENTO" isn't a prefix
+// repeat, it's a middle-name nickname), the glued string is kept as-is: still usable
+// (`buildFerjSumula` matches roster→event players by checking the glued string ENDS
+// WITH the event's full name, which works regardless of whether this cleanup
+// succeeds — the split is a display-name nicety, not load-bearing for identity/stat
+// matching). Upgraded from a repeat-only check (Session 57 — real broken names found
+// live in production, e.g. an ellipsis case that the old repeat-only version never
+// even tried to handle: "1BRYAN ROCHA FER...BRYAN ROCHA FERREIRA DE OLIVEIRA").
+function cleanName(raw: string): string {
+  return raw.replace(/\s*(?:\.\.\.|…)\s*/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function foldForCompare(s: string): string {
+  return s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+}
+
 function cleanGluedName(glued: string): string {
-  for (let i = 2; i <= Math.floor(glued.length / 2); i++) {
-    if (glued.slice(i).startsWith(glued.slice(0, i)) && glued[i - 1] !== glued[i]) {
-      return glued.slice(i).trim();
+  const ellipsisAt = glued.search(/\.\.\.|…/);
+  if (ellipsisAt !== -1) {
+    const after = glued.slice(ellipsisAt).replace(/^(?:\.\.\.|…)\s*/, "");
+    if (after.trim()) return cleanName(after);
+    glued = glued.slice(0, ellipsisAt);
+  }
+
+  // Strip leading parsing noise (digit/comma/stray punctuation) that would break
+  // pattern 3's prefix-repeat check — same fix as CBF's version, see its comment.
+  glued = glued.replace(/^[\d\s,.\-]+/, "");
+
+  let patternAMatch: string | null = null;
+  for (let i = 1; i < glued.length - 1; i++) {
+    const prev = glued[i - 1]!;
+    const cur = glued[i]!;
+    const next = glued[i + 1]!;
+    if (/[A-ZÀ-Ý]/.test(cur) && /[a-zà-ÿ]/.test(next) && /[a-zà-ÿA-ZÀ-Ý0-9]/.test(prev)) {
+      const candidate = cleanName(glued.slice(i));
+      if (candidate.split(" ").filter(Boolean).length >= 2 || candidate.length >= 8) {
+        patternAMatch = candidate;
+      }
     }
   }
-  return glued.trim();
+  if (patternAMatch !== null) return patternAMatch;
+
+  // Repeated prefix must be at least 3 characters (Session 57 — a 2-char run
+  // of the same character trivially satisfies the repeat check but is never a
+  // real apelido, e.g. "XX" inside a redacted/placeholder blob).
+  const folded = foldForCompare(glued);
+  for (let i = 3; i <= Math.floor(glued.length / 2); i++) {
+    if (folded.slice(i).startsWith(folded.slice(0, i)) && /[A-ZÀ-Ý]/.test(glued[i]!)) {
+      const candidate = cleanName(glued.slice(i));
+      if (candidate.split(" ").filter(Boolean).length < 2 && candidate.length < 8) continue;
+      return candidate;
+    }
+  }
+
+  return cleanName(glued);
 }
 
 function parseRosterRows(block: string): FerjRosterPlayer[] {

@@ -30,7 +30,7 @@ export function TacticalBoardClient({
   initialSlots: TacticalBoardSlotRecord[];
 }) {
   const { t } = useT();
-  const { favorites, savingBid } = useFavorites();
+  const { favorites, savingBid, loaded: favoritesLoaded } = useFavorites();
   const client = useMemo(() => createClient(), []);
   const [candidates, setCandidates] = useState<RankingCandidate[]>([]);
   const [athletes, setAthletes] = useState<Map<number, AtletaRecord>>(new Map());
@@ -171,11 +171,17 @@ export function TacticalBoardClient({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [candidates.length]);
 
+  // Guarded on `favoritesLoaded` (Session 57 — real bug found live): favorites
+  // always start as `[]` and fill in a moment later (FavoritesProvider fetches
+  // client-side, off the critical path). Without this guard, this effect ran
+  // on that transient empty array on every mount, read it as "no favorites",
+  // and wiped a real saved lineup before the actual favorites ever arrived —
+  // the pruned slot never came back once removed from this component's state.
   useEffect(() => {
-    if (savingBid !== null) return;
+    if (!favoritesLoaded || savingBid !== null) return;
     const favoriteBids = new Set(favorites.map((favorite) => favorite.fbId));
     setLineup((current) => current.filter((entry) => favoriteBids.has(entry.fbId)));
-  }, [favorites, savingBid]);
+  }, [favorites, favoritesLoaded, savingBid]);
 
   async function handleNameSave() {
     if (mutationInFlight.current) return;

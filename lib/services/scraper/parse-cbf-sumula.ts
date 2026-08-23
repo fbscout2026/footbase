@@ -153,6 +153,16 @@ export function nomeCompletoFromGlued(blob: string): string {
     blob = blob.slice(0, ellipsisAt); // trailing-only truncation; try the checks below
   }
 
+  // A real name never starts with a digit/comma/stray punctuation — a leading run
+  // of those is parsing noise (e.g. a shirt number or a stray delimiter that leaked
+  // into this column), not part of anyone's apelido, and it breaks pattern 3's
+  // prefix-repeat check below by making the "prefix" include noise the repeated
+  // real name doesn't have (found live, Session 57: "1ELTONELTON MOREIRA GONÇALVES
+  // JUNIOR" — the leading "1" alone prevented the genuine "ELTON" repeat from ever
+  // matching). Only strips from the very start, never mid-string (never touches
+  // legitimate internal punctuation like "D'Alessandro").
+  blob = blob.replace(/^[\d\s,.\-]+/, "");
+
   // Take the LAST such transition, not the first — a glued apelido can itself
   // contain another transition (e.g. a shirt number AND a nickname both
   // glued in front: "1185 2ChocolateDavi Guimaraes..."), and the real full
@@ -180,11 +190,18 @@ export function nomeCompletoFromGlued(blob: string): string {
   // `blob[i]` must be a capital letter — a real name never starts a word
   // lowercase, so a match landing mid-word (e.g. "Dydye" coincidentally
   // contains "dy" twice — "Dy" + "dye" — with no real apelido/name split at
-  // all) is a false positive, not a genuine repeat.
+  // all) is a false positive, not a genuine repeat. Repeated prefix must be at
+  // least 3 characters (Session 57 — a 2-char run of the SAME character, e.g.
+  // "XX" in a redacted/placeholder blob like "0XXXXBRENO...", trivially
+  // satisfies a 2-char repeat and is never a real apelido; the candidate-
+  // length guard below doesn't catch this — what's wrong is the short
+  // PREFIX itself, not the length of what's left over after it).
   const folded = foldForCompare(blob);
-  for (let i = 2; i <= Math.floor(blob.length / 2); i++) {
+  for (let i = 3; i <= Math.floor(blob.length / 2); i++) {
     if (folded.slice(i).startsWith(folded.slice(0, i)) && /[A-ZÀ-Ý]/.test(blob[i]!)) {
-      return cleanName(blob.slice(i));
+      const candidate = cleanName(blob.slice(i));
+      if (candidate.split(" ").filter(Boolean).length < 2 && candidate.length < 8) continue;
+      return candidate;
     }
   }
 

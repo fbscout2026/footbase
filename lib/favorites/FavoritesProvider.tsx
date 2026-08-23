@@ -17,6 +17,13 @@ interface FavoritesContextValue {
   removeFavorite: (fbId: number) => Promise<void>;
   savingBid: number | null;
   loadFailed: boolean;
+  /** False only during the initial client-side fetch (`initialFavorites ===
+   * null`, always the case today — see the layout). Consumers that derive
+   * state FROM `favorites` (e.g. pruning tactical-board slots for athletes
+   * no longer favorited) must gate on this — otherwise the transient empty
+   * array before the fetch resolves reads as "no favorites" and wipes state
+   * that the real data would have kept. */
+  loaded: boolean;
 }
 
 const FavoritesContext = createContext<FavoritesContextValue | null>(null);
@@ -33,6 +40,7 @@ export function FavoritesProvider({
   const [favorites, setFavorites] = useState(initialFavorites ?? []);
   const [savingBid, setSavingBid] = useState<number | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
+  const [loaded, setLoaded] = useState(initialFavorites !== null);
   const mutationInFlight = useRef(false);
 
   // `initialFavorites === null` means the layout didn't fetch this server-side
@@ -50,6 +58,9 @@ export function FavoritesProvider({
       })
       .catch(() => {
         if (!cancelled) setLoadFailed(true);
+      })
+      .finally(() => {
+        if (!cancelled) setLoaded(true);
       });
     return () => {
       cancelled = true;
@@ -107,7 +118,7 @@ export function FavoritesProvider({
   }
 
   return (
-    <FavoritesContext.Provider value={{ favorites, getFavorite, saveFavorite, removeFavorite, savingBid, loadFailed }}>
+    <FavoritesContext.Provider value={{ favorites, getFavorite, saveFavorite, removeFavorite, savingBid, loadFailed, loaded }}>
       {children}
     </FavoritesContext.Provider>
   );
