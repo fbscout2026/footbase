@@ -24,9 +24,13 @@ export interface CorrectionRequestRecord {
   status: "pending" | "approved" | "rejected"; createdAt: string;
 }
 
+export interface AgentFavoriteClubRecord { id: string; clubId: string; name: string; crestUrl: string | null; }
+export interface AgentFavoriteTournamentRecord { id: string; torneioId: string; name: string; category: string | null; year: number | null; }
+
 export interface AgentPanelData {
   agent: AgentProfileRecord; athletes: AgentAthleteRecord[];
   corrections: CorrectionRequestRecord[]; favoriteCount: number;
+  favoriteClubs: AgentFavoriteClubRecord[]; favoriteTournaments: AgentFavoriteTournamentRecord[];
 }
 
 type AgentRow = {
@@ -58,7 +62,7 @@ export async function loadAgentPanel(client: SupabaseClient, userId: string): Pr
   if (agentError) throw agentError;
   const agent = mapAgent(agentData as AgentRow);
 
-  const [athletesResult, correctionsResult, favoritesResult] = await Promise.all([
+  const [athletesResult, correctionsResult, favoritesResult, favoriteClubsResult, favoriteTournamentsResult] = await Promise.all([
     client.from("atletas")
       .select("fb_id,fifa_id,name,apelido,birth_date,nacionalidade,tem_passaporte,passaporte,main_position,posicao_secundaria,dominant_foot,height_cm,weight_kg,inicio_carreira,current_club_id,current_category,contract_end_date,experiencia_internacional,jogos_suspenso,youtube_video_url")
       .eq("agent_id", agent.id).eq("claim_status", "claimed").order("name"),
@@ -66,10 +70,14 @@ export async function loadAgentPanel(client: SupabaseClient, userId: string): Pr
       .select("id,fb_id_atleta,field_name,current_value,suggested_value,reason,comprovante_url,status,created_at")
       .eq("requested_by", userId).order("created_at", { ascending: false }),
     client.from("favoritos").select("id", { count: "exact", head: true }).eq("user_id", userId),
+    client.from("favoritos_clube").select("id,club_id,clubes(name,webp_crest_url,crest_storage_path)").eq("user_id", userId).order("created_at", { ascending: false }),
+    client.from("favoritos_torneio").select("id,torneio_id,torneios(name,category,year)").eq("user_id", userId).order("created_at", { ascending: false }),
   ]);
   if (athletesResult.error) throw athletesResult.error;
   if (correctionsResult.error) throw correctionsResult.error;
   if (favoritesResult.error) throw favoritesResult.error;
+  if (favoriteClubsResult.error) throw favoriteClubsResult.error;
+  if (favoriteTournamentsResult.error) throw favoriteTournamentsResult.error;
 
   const athletes = (athletesResult.data ?? []).map((row) => ({
     fbId: Number(row.fb_id), fifaId: row.fifa_id, name: row.name, apelido: row.apelido, birthDate: row.birth_date,
@@ -88,7 +96,17 @@ export async function loadAgentPanel(client: SupabaseClient, userId: string): Pr
     status: row.status, createdAt: row.created_at,
   })) as CorrectionRequestRecord[];
 
-  return { agent, athletes, corrections, favoriteCount: favoritesResult.count ?? 0 };
+  const favoriteClubs = (favoriteClubsResult.data ?? []).map((item) => {
+    const favClub = Array.isArray(item.clubes) ? item.clubes[0] : item.clubes;
+    const crestUrl = favClub?.crest_storage_path ? `/api/clube/crest?club=${item.club_id}` : favClub?.webp_crest_url ?? null;
+    return { id: item.id, clubId: String(item.club_id), name: favClub?.name ?? "—", crestUrl };
+  });
+  const favoriteTournaments = (favoriteTournamentsResult.data ?? []).map((item) => {
+    const torneio = Array.isArray(item.torneios) ? item.torneios[0] : item.torneios;
+    return { id: item.id, torneioId: String(item.torneio_id), name: torneio?.name ?? "—", category: torneio?.category ?? null, year: torneio?.year ?? null };
+  });
+
+  return { agent, athletes, corrections, favoriteCount: favoritesResult.count ?? 0, favoriteClubs, favoriteTournaments };
 }
 
 export async function updateAgentProfile(client: SupabaseClient, id: string, input: {

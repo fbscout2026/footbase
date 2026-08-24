@@ -99,6 +99,21 @@ export interface ClubFavoriteRecord {
   category: string | null;
 }
 
+export interface ClubFavoriteClubRecord {
+  id: string;
+  clubId: string;
+  name: string;
+  crestUrl: string | null;
+}
+
+export interface ClubFavoriteTournamentRecord {
+  id: string;
+  torneioId: string;
+  name: string;
+  category: string | null;
+  year: number | null;
+}
+
 export interface ClubPanelData {
   access: ClubPanelAccess;
   club: ManagedClubRecord;
@@ -108,6 +123,8 @@ export interface ClubPanelData {
   corrections: ClubCorrectionRecord[];
   divergences: ClubDivergenceRecord[];
   favorites: ClubFavoriteRecord[];
+  favoriteClubs: ClubFavoriteClubRecord[];
+  favoriteTournaments: ClubFavoriteTournamentRecord[];
   availableCategories: string[];
 }
 
@@ -126,22 +143,39 @@ export async function findClaimedClubId(client: SupabaseClient, userId: string):
 }
 
 export async function loadClubPanel(client: SupabaseClient, clubId: string, access: ClubPanelAccess): Promise<ClubPanelData> {
-  const [clubResult, squadResult, categoriesResult, tournamentsResult, rosterResult, correctionResult, divergenceResult, favoritesResult, categoryOrderResult] = await Promise.all([
-    client.from("clubes").select(CLUB_FIELDS).eq("id", clubId).single(),
+  const clubResult = await client.from("clubes").select(CLUB_FIELDS).eq("id", clubId).single();
+  if (clubResult.error) throw clubResult.error;
+  const row = clubResult.data as Record<string, unknown>;
+  // Favorites belong to the club's owning account (`reivindicado_por`), never the
+  // viewer — an admin supervising via `?club=` must see the CLUB's favorites, not
+  // their own. Filtering explicitly also matters for correctness under RLS: the
+  // `favoritos`/`favoritos_clube`/`favoritos_torneio` policies let an admin read
+  // every row in the table, so an unfiltered query here would silently mix in
+  // every other account's favorites instead of erroring.
+  const ownerId = row.reivindicado_por as string | null;
+
+  const [squadResult, categoriesResult, tournamentsResult, rosterResult, correctionResult, divergenceResult, favoritesResult, favoriteClubsResult, favoriteTournamentsResult, categoryOrderResult] = await Promise.all([
     client.from("atletas").select("fb_id,name,apelido,main_position,current_category,contract_end_date").eq("current_club_id", clubId).order("current_category").order("name"),
     client.from("club_categorias").select("id,category,status,display_order,source_status").eq("club_id", clubId).order("display_order").order("category"),
     client.from("club_categoria_torneios").select("id,club_category_id,declared_name,season,start_date,end_date,status,source_status,torneios(name)").order("created_at", { ascending: false }),
     client.from("club_elenco_solicitacoes").select("id,fb_id_atleta,informed_bid,informed_name,action,current_category_snapshot,proposed_category,justification,evidence_url,status,created_at").eq("club_id", clubId).order("created_at", { ascending: false }),
     client.from("club_correction_requests").select("id,field_name,current_value,suggested_value,reason,evidence_url,status,created_at").eq("club_id", clubId).order("created_at", { ascending: false }),
     client.from("club_divergencias").select("id,domain,field_name,official_source,status,created_at").eq("club_id", clubId).order("created_at", { ascending: false }),
-    client.from("favoritos").select("id,fb_id_atleta,nota,notas,atletas(name,apelido,main_position,current_category)").order("nota", { ascending: false }),
+    ownerId
+      ? client.from("favoritos").select("id,fb_id_atleta,nota,notas,atletas(name,apelido,main_position,current_category)").eq("user_id", ownerId).order("nota", { ascending: false })
+      : Promise.resolve({ data: [], error: null }),
+    ownerId
+      ? client.from("favoritos_clube").select("id,club_id,clubes(name,webp_crest_url,crest_storage_path)").eq("user_id", ownerId).order("created_at", { ascending: false })
+      : Promise.resolve({ data: [], error: null }),
+    ownerId
+      ? client.from("favoritos_torneio").select("id,torneio_id,torneios(name,category,year)").eq("user_id", ownerId).order("created_at", { ascending: false })
+      : Promise.resolve({ data: [], error: null }),
     client.from("categoria_ordem").select("categoria").order("rank"),
   ]);
-  for (const result of [clubResult, squadResult, categoriesResult, tournamentsResult, rosterResult, correctionResult, divergenceResult, favoritesResult, categoryOrderResult]) {
+  for (const result of [squadResult, categoriesResult, tournamentsResult, rosterResult, correctionResult, divergenceResult, favoritesResult, favoriteClubsResult, favoriteTournamentsResult, categoryOrderResult]) {
     if (result.error) throw result.error;
   }
 
-  const row = clubResult.data as Record<string, unknown>;
   const tournaments = (tournamentsResult.data ?? []) as Array<Record<string, unknown>>;
   return {
     access,
@@ -168,6 +202,15 @@ export async function loadClubPanel(client: SupabaseClient, clubId: string, acce
     favorites: (favoritesResult.data ?? []).map((item) => {
       const athlete = Array.isArray(item.atletas) ? item.atletas[0] : item.atletas;
       return { id: item.id, fbId: Number(item.fb_id_atleta), rating: item.nota ?? 50, notes: item.notas, athleteName: athlete?.name ?? formatAthleteCode(Number(item.fb_id_atleta)), athleteNickname: athlete?.apelido ?? null, position: athlete?.main_position ?? null, category: athlete?.current_category ?? null };
+    }),
+    favoriteClubs: (favoriteClubsResult.data ?? []).map((item) => {
+      const favClub = Array.isArray(item.clubes) ? item.clubes[0] : item.clubes;
+      const crestUrl = favClub?.crest_storage_path ? `/api/clube/crest?club=${item.club_id}` : favClub?.webp_crest_url ?? null;
+      return { id: item.id, clubId: String(item.club_id), name: favClub?.name ?? "—", crestUrl };
+    }),
+    favoriteTournaments: (favoriteTournamentsResult.data ?? []).map((item) => {
+      const torneio = Array.isArray(item.torneios) ? item.torneios[0] : item.torneios;
+      return { id: item.id, torneioId: String(item.torneio_id), name: torneio?.name ?? "—", category: torneio?.category ?? null, year: torneio?.year ?? null };
     }),
     availableCategories: (categoryOrderResult.data ?? []).map((item) => item.categoria),
   };

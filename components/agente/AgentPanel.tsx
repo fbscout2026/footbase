@@ -11,9 +11,11 @@ import { useSession } from "@/lib/auth/SessionProvider";
 import { useT } from "@/lib/i18n/I18nProvider";
 import { createClient } from "@/lib/supabase/client";
 import { normalizeOptionalText } from "@/lib/agent-panel-rules";
-import { updateAgentProfile, type AgentAthleteRecord, type AgentPanelData, type AgentProfileRecord } from "@/lib/services/agent-panel";
+import { updateAgentProfile, type AgentAthleteRecord, type AgentFavoriteClubRecord, type AgentFavoriteTournamentRecord, type AgentPanelData, type AgentProfileRecord } from "@/lib/services/agent-panel";
+import { removeClubFavorite } from "@/lib/services/club-favorites";
+import { removeTournamentFavorite } from "@/lib/services/tournament-favorites";
 import { formatAthleteCode } from "@/lib/format";
-import { BriefcaseBusiness, CheckCircle2, FilePenLine, Heart, Pencil, ShieldCheck, Users } from "lucide-react";
+import { BriefcaseBusiness, CheckCircle2, FilePenLine, Heart, Pencil, Shield, ShieldCheck, Trophy, Users, X } from "lucide-react";
 
 export function AgentPanel({
   initialData,
@@ -131,9 +133,62 @@ export function AgentPanel({
         )}
       </section>
 
+      <AgentFavoriteLists client={client} ownerId={data.agent.userId} readOnly={readOnly} favoriteClubs={data.favoriteClubs} favoriteTournaments={data.favoriteTournaments} />
+
       {editingAthlete && <AgentAthleteEditor athlete={editingAthlete} onClose={() => setEditingAthlete(null)} onSaved={(athlete) => { setData({ ...data, athletes: data.athletes.map((item) => item.fbId === athlete.fbId ? athlete : item) }); setEditingAthlete(null); }} />}
     </div>
   );
+}
+
+function AgentFavoriteLists({
+  client,
+  ownerId,
+  readOnly,
+  favoriteClubs,
+  favoriteTournaments,
+}: {
+  client: ReturnType<typeof createClient>;
+  ownerId: string;
+  readOnly: boolean;
+  favoriteClubs: AgentFavoriteClubRecord[];
+  favoriteTournaments: AgentFavoriteTournamentRecord[];
+}) {
+  const { t } = useT();
+  const [clubs, setClubs] = useState(favoriteClubs);
+  const [tournaments, setTournaments] = useState(favoriteTournaments);
+
+  async function unfavoriteClub(clubId: string) {
+    if (readOnly) return;
+    const prev = clubs;
+    setClubs(clubs.filter((c) => c.clubId !== clubId));
+    try { await removeClubFavorite(client, ownerId, clubId); } catch { setClubs(prev); }
+  }
+
+  async function unfavoriteTournament(torneioId: string) {
+    if (readOnly) return;
+    const prev = tournaments;
+    setTournaments(tournaments.filter((tour) => tour.torneioId !== torneioId));
+    try { await removeTournamentFavorite(client, ownerId, torneioId); } catch { setTournaments(prev); }
+  }
+
+  return <div className="grid gap-5 md:grid-cols-2">
+    <section className="matchday-surface overflow-hidden">
+      <div className="border-b border-border p-5"><h2 className="matchday-heading flex items-center gap-2 text-xl"><Shield size={19} className="text-brand" />{t("clubPanel.favoriteClubs.title")}</h2></div>
+      {clubs.length === 0 ? <p className="p-8 text-center text-sm text-muted">{t("clubPanel.favoriteClubs.empty")}</p> : <ul className="divide-y divide-border">{clubs.map((fav) => <li key={fav.id} className="flex items-center gap-3 px-5 py-3">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center border border-border bg-background">{fav.crestUrl ? <img src={fav.crestUrl} alt="" className="max-h-7 max-w-7 object-contain" /> : <Shield size={16} className="text-muted" />}</div>
+        <Link href={`/clubes/${fav.clubId}`} className="flex-1 font-semibold hover:text-brand">{fav.name}</Link>
+        {!readOnly && <button type="button" onClick={() => unfavoriteClub(fav.clubId)} aria-label={t("clubPanel.favoriteClubs.remove")} className="flex h-8 w-8 items-center justify-center border border-border text-muted hover:border-danger hover:text-danger"><X size={14} /></button>}
+      </li>)}</ul>}
+    </section>
+
+    <section className="matchday-surface overflow-hidden">
+      <div className="border-b border-border p-5"><h2 className="matchday-heading flex items-center gap-2 text-xl"><Trophy size={19} className="text-brand" />{t("clubPanel.favoriteTournaments.title")}</h2></div>
+      {tournaments.length === 0 ? <p className="p-8 text-center text-sm text-muted">{t("clubPanel.favoriteTournaments.empty")}</p> : <ul className="divide-y divide-border">{tournaments.map((fav) => <li key={fav.id} className="flex items-center gap-3 px-5 py-3">
+        <Link href={`/torneios/${fav.torneioId}`} className="flex-1 font-semibold hover:text-brand">{fav.name}{(fav.category || fav.year) && <span className="ml-2 text-xs font-normal text-muted">{[fav.category, fav.year].filter(Boolean).join(" · ")}</span>}</Link>
+        {!readOnly && <button type="button" onClick={() => unfavoriteTournament(fav.torneioId)} aria-label={t("clubPanel.favoriteTournaments.remove")} className="flex h-8 w-8 items-center justify-center border border-border text-muted hover:border-danger hover:text-danger"><X size={14} /></button>}
+      </li>)}</ul>}
+    </section>
+  </div>;
 }
 
 function Metric({ icon: Icon, value, label }: { icon: typeof Users; value: number; label: string }) {

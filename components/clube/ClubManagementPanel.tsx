@@ -51,7 +51,7 @@ export function ClubManagementPanel({ initialData, managedClubs, readOnly }: { i
       {tab === "profile" && <ClubProfileForm data={initialData} readOnly={readOnly} />}
       {tab === "squad" && <ClubSquadManager data={initialData} />}
       {tab === "categories" && <ClubCategoriesManager data={initialData} />}
-      {tab === "favorites" && <ClubFavorites favorites={initialData.favorites} />}
+      {tab === "favorites" && <ClubFavorites favorites={initialData.favorites} favoriteClubs={initialData.favoriteClubs} favoriteTournaments={initialData.favoriteTournaments} ownerId={initialData.club.claimedBy} readOnly={readOnly} />}
     </div>
   </div>;
 }
