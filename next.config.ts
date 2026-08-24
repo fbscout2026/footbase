@@ -25,6 +25,50 @@ const nextConfig: NextConfig = {
       dynamic: 60,
     },
   },
+  // Baseline security headers on every response. HSTS only bites once a request
+  // actually arrives over HTTPS (the VPS reverse proxy owns the HTTP→HTTPS
+  // redirect itself, outside this repo) — it's harmless to send unconditionally
+  // since browsers only honor it on secure origins in the first place.
+  //
+  // The CSP allows 'unsafe-inline' for script/style: Next.js App Router injects
+  // inline hydration data and Tailwind/component libraries rely on inline
+  // style attributes, and wiring a nonce through every Server Component render
+  // is a bigger change than this pass. It still blocks the actual threat model
+  // (a third-party script/stylesheet domain), just not an inline-injection XSS
+  // — a stricter nonce-based policy is a valid future hardening step.
+  // connect-src includes the Supabase project origin (REST + realtime) since
+  // that's the only external API this app calls from the browser.
+  async headers() {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseOrigin = supabaseUrl ?? "";
+    const supabaseWs = supabaseUrl ? supabaseUrl.replace(/^https:/, "wss:") : "";
+    const csp = [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline'",
+      "style-src 'self' 'unsafe-inline'",
+      "img-src 'self' data: blob:",
+      "font-src 'self' data:",
+      `connect-src 'self' ${supabaseOrigin} ${supabaseWs}`,
+      "frame-ancestors 'none'",
+      "base-uri 'self'",
+      "form-action 'self'",
+      "object-src 'none'",
+    ].join("; ");
+
+    return [
+      {
+        source: "/:path*",
+        headers: [
+          { key: "X-Frame-Options", value: "DENY" },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" },
+          { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+          { key: "Content-Security-Policy", value: csp },
+        ],
+      },
+    ];
+  },
 };
 
 export default nextConfig;
