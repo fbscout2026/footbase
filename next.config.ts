@@ -42,13 +42,22 @@ const nextConfig: NextConfig = {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseOrigin = supabaseUrl ?? "";
     const supabaseWs = supabaseUrl ? supabaseUrl.replace(/^https:/, "wss:") : "";
+    // Dev-only additions, never shipped to production: React's dev mode needs
+    // eval() to reconstruct cross-environment callstacks (never used in prod
+    // builds), and Turbopack's HMR client needs a same-origin ws:// connection
+    // for hot reload.
+    const isDev = process.env.NODE_ENV !== "production";
+    const scriptSrc = isDev ? "script-src 'self' 'unsafe-inline' 'unsafe-eval'" : "script-src 'self' 'unsafe-inline'";
+    const connectSrc = isDev
+      ? `connect-src 'self' ${supabaseOrigin} ${supabaseWs} ws://localhost:* ws://127.0.0.1:*`
+      : `connect-src 'self' ${supabaseOrigin} ${supabaseWs}`;
     const csp = [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline'",
+      scriptSrc,
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: blob:",
       "font-src 'self' data:",
-      `connect-src 'self' ${supabaseOrigin} ${supabaseWs}`,
+      connectSrc,
       "frame-ancestors 'none'",
       "base-uri 'self'",
       "form-action 'self'",
