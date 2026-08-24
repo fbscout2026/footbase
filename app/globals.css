@@ -41,6 +41,13 @@
   --danger: 220 38 38;
 }
 
+/* Landing page nav anchors (#recursos, #como-funciona, #para-quem) jump instantly
+   without this — the reduced-motion block below (`!important`) already forces `auto`
+   there, so this stays accessibility-safe regardless of placement (Session 57). */
+html {
+  scroll-behavior: smooth;
+}
+
 body {
   background-color: rgb(var(--bg));
   color: rgb(var(--fg));
@@ -62,6 +69,13 @@ body {
   border: 1px solid rgb(var(--border));
   background: rgb(var(--surface));
   box-shadow: 0 12px 30px rgb(0 0 0 / 0.12);
+}
+
+/* Light mode's --surface is pure white, identical to --bg (Session 57) — cards rely
+   entirely on border+shadow for definition, so the shared dark-mode shadow value reads
+   too faint there. Dark mode's rule above is untouched. */
+:root.light .matchday-surface {
+  box-shadow: 0 12px 30px rgb(0 0 0 / 0.22);
 }
 
 .matchday-surface::before {

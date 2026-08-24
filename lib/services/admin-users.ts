@@ -53,3 +53,20 @@ export async function setAccountStatus(client: SupabaseClient, userId: string, s
   const { error } = await client.from("profiles").update({ account_status: status }).eq("id", userId);
   if (error) throw error;
 }
+
+// Session 57 (WS7) — reject WITH a reason, same 20-2000-char convention already used
+// by admin_promocoes.justificativa / club_correction_requests.reason. Still a plain
+// admin update (admin bypasses guard_profile_update()'s allowlist entirely via its
+// own `is_admin()` early-exit) — no RPC needed on this side, only the self-service
+// "Solicitar Revisão" path (`solicitar_revisao_conta()`) needed one.
+export async function rejectUserWithReason(client: SupabaseClient, userId: string, reason: string): Promise<void> {
+  const trimmed = reason.trim();
+  if (trimmed.length < 20 || trimmed.length > 2000) {
+    throw new Error("reason must be between 20 and 2000 characters");
+  }
+  const { error } = await client
+    .from("profiles")
+    .update({ account_status: "rejected", rejection_reason: trimmed })
+    .eq("id", userId);
+  if (error) throw error;
+}

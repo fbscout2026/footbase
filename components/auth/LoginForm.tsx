@@ -53,15 +53,12 @@ export function LoginForm() {
       claimDeviceSession(deviceSessionId);
 
       const status = profile?.account_status;
-      if (status === "rejected") {
-        await supabase.auth.signOut();
-        setError(t("auth.login.rejected"));
-        return;
-      }
-
       if (status === "approved") {
         router.push("/dashboard");
       } else {
+        // pending AND rejected both land here — the rejected screen shows the reason
+        // and a "Solicitar Revisão" button (WS7), so a rejected account must stay
+        // signed in to reach it instead of being bounced with a generic error.
         router.push("/aguardando-aprovacao");
       }
     } catch {

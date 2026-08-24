@@ -16,6 +16,7 @@ export function RadarContratos({ athletes: expiringContractAtletas }: { athletes
       title={t("dashboard.contracts.title")}
       subtitle={t("dashboard.contracts.subtitle")}
       icon={FileClock}
+      scrollable
     >
       {expiringContractAtletas.length === 0 ? (
         <p className="text-sm text-muted">{t("dashboard.contracts.empty")}</p>

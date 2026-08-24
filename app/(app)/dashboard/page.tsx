@@ -23,24 +23,30 @@ export default async function DashboardPage() {
 
   const [hero, torneios, contratos, gemas, inativos, board, artilheiros, livres, notifications] = await Promise.all([
     loadHeroStats(supabase),
-    loadTorneiosDestaque(supabase),
-    loadContratosVencendo(supabase),
+    loadTorneiosDestaque(supabase, 20),
+    loadContratosVencendo(supabase, 20),
     loadGemasCategoriaAcima(supabase, 20),
-    loadInativos(supabase),
+    loadInativos(supabase, 20),
     session ? loadBoardSummary(supabase, session.userId) : Promise.resolve({ exists: false, formation: "4-3-3", starters: 0, bench: 0 }),
-    loadTopScorers(supabase),
-    loadAgentesLivres(supabase),
-    session ? loadNotificationsSummary(supabase, session.userId) : Promise.resolve({ count: 0, contractsExpiring: 0, inactive: 0, newGems: 0 }),
+    loadTopScorers(supabase, 20),
+    loadAgentesLivres(supabase, 20),
+    session ? loadNotificationsSummary(supabase, session.userId) : Promise.resolve({ count: 0, contractsExpiring: 0, inactive: 0, newGems: 0, favoritedClubs: 0, favoritedTournaments: 0 }),
   ]);
 
   return (
     <div className="space-y-4">
       <HeroBanner stats={hero} notifications={notifications} />
 
+      {/* Session 57: Torneios+Artilheiros+Agentes Livres stacked in the left rail
+          (fills vertical space instead of leaving the right rail short); every list
+          card now requests up to 20 rows and scrolls internally (WidgetCard's
+          `scrollable` prop) instead of hard-cutting at 6. */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
-        {/* Left rail — competitions */}
+        {/* Left rail — competitions + scoring/market feeds */}
         <aside className="space-y-4 lg:col-span-3">
           <TorneiosDestaque torneios={torneios} />
+          <Artilheiros athletes={artilheiros} />
+          <AgentesLivres athletes={livres} />
         </aside>
 
         {/* Center — main analysis */}
@@ -50,11 +56,9 @@ export default async function DashboardPage() {
           <GemasCategoriaAcima athletes={gemas} />
         </div>
 
-        {/* Right rail — feeds */}
+        {/* Right rail — activity alerts */}
         <aside className="space-y-4 lg:col-span-3">
           <AlertaInatividade athletes={inativos} />
-          <Artilheiros athletes={artilheiros} />
-          <AgentesLivres athletes={livres} />
         </aside>
       </div>
     </div>

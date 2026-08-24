@@ -16,6 +16,7 @@ export function AlertaInatividade({ athletes: inactiveAtletas }: { athletes: Ina
       title={t("dashboard.inactivity.title")}
       subtitle={t("dashboard.inactivity.subtitle")}
       icon={BellRing}
+      scrollable
     >
       {inactiveAtletas.length === 0 ? (
         <p className="text-sm text-muted">{t("dashboard.inactivity.empty")}</p>

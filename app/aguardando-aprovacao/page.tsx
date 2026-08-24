@@ -17,6 +17,9 @@ export default function AguardandoAprovacaoPage() {
   const { t } = useT();
   const router = useRouter();
   const [screen, setScreen] = useState<Screen>("checking");
+  const [rejectionReason, setRejectionReason] = useState<string | null>(null);
+  const [requestingReview, setRequestingReview] = useState(false);
+  const [reviewError, setReviewError] = useState(false);
 
   useEffect(() => {
     const supabase = createClient();
@@ -33,7 +36,7 @@ export default function AguardandoAprovacaoPage() {
 
       const { data: profile } = await supabase
         .from("profiles")
-        .select("account_status")
+        .select("account_status,rejection_reason")
         .eq("id", user.id)
         .single();
 
@@ -41,6 +44,7 @@ export default function AguardandoAprovacaoPage() {
       if (status === "approved") {
         router.replace("/dashboard");
       } else if (status === "rejected") {
+        setRejectionReason(profile?.rejection_reason ?? null);
         setScreen("rejected");
       } else {
         setScreen("pending");
@@ -52,6 +56,24 @@ export default function AguardandoAprovacaoPage() {
     const supabase = createClient();
     await supabase.auth.signOut();
     router.replace("/login");
+  }
+
+  // Session 57 (WS7) — the only door back to "pending" from "rejected": guard_profile_update()
+  // never lets a self-service user touch account_status directly, only this narrow RPC.
+  async function handleRequestReview() {
+    setRequestingReview(true);
+    setReviewError(false);
+    try {
+      const supabase = createClient();
+      const { error } = await supabase.rpc("solicitar_revisao_conta");
+      if (error) throw error;
+      setRejectionReason(null);
+      setScreen("pending");
+    } catch {
+      setReviewError(true);
+    } finally {
+      setRequestingReview(false);
+    }
   }
 
   if (screen === "checking") {
@@ -76,9 +98,19 @@ export default function AguardandoAprovacaoPage() {
     >
       <div className="flex flex-col gap-4">
         {!isRejected && (
-          <div className="flex items-center justify-center gap-2 rounded-lg border border-brand/30 bg-brand/10 px-4 py-3 text-brand">
-            <Clock size={18} />
-            <span className="text-sm font-medium">{t("pending.title")}</span>
+          <>
+            <div className="flex items-center justify-center gap-2 rounded-lg border border-brand/30 bg-brand/10 px-4 py-3 text-brand">
+              <Clock size={18} />
+              <span className="text-sm font-medium">{t("pending.title")}</span>
+            </div>
+            <p className="text-center text-xs text-muted">{t("pending.slaNotice")}</p>
+          </>
+        )}
+
+        {isRejected && rejectionReason && (
+          <div className="rounded-lg border border-danger/30 bg-danger/10 px-4 py-3">
+            <p className="text-xs font-bold uppercase tracking-wide text-danger">{t("pending.rejectionReasonTitle")}</p>
+            <p className="mt-1 text-sm text-foreground">{rejectionReason}</p>
           </div>
         )}
 
@@ -95,6 +127,17 @@ export default function AguardandoAprovacaoPage() {
             {t("pending.whatsappCta")}
           </a>
         )}
+
+        {isRejected && (
+          <button
+            onClick={handleRequestReview}
+            disabled={requestingReview}
+            className="inline-flex items-center justify-center gap-2 rounded-lg border border-brand/40 px-5 py-2.5 text-sm font-semibold text-brand transition-colors hover:bg-brand/10 disabled:cursor-wait disabled:opacity-60"
+          >
+            {requestingReview ? t("pending.requestingReview") : t("pending.requestReview")}
+          </button>
+        )}
+        {reviewError && <p className="text-center text-sm text-danger">{t("pending.requestReviewError")}</p>}
 
         <button
           onClick={handleLogout}

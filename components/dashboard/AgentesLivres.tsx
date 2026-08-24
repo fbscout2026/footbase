@@ -15,6 +15,7 @@ export function AgentesLivres({ athletes: freeAgentAtletas }: { athletes: Scorer
       title={t("dashboard.freeAgents.title")}
       subtitle={t("dashboard.freeAgents.subtitle")}
       icon={UserMinus}
+      scrollable
     >
       {freeAgentAtletas.length === 0 ? (
         <p className="text-sm text-muted">{t("dashboard.freeAgents.empty")}</p>

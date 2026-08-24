@@ -93,8 +93,15 @@ export interface TorneioRow {
   year: number;
 }
 
+// Ranked by real recent activity (`view_torneios_destaque`, Session 57 — súmulas
+// ingested in the last 30 days per tournament), not just alphabetical order.
 export async function loadTorneiosDestaque(client: SupabaseClient, limit = 8): Promise<TorneioRow[]> {
-  const { data, error } = await client.from("torneios").select("id,name,federation,category,year").order("name").limit(limit);
+  const { data, error } = await client
+    .from("view_torneios_destaque")
+    .select("id,name,federation,category,year,recent_activity")
+    .order("recent_activity", { ascending: false })
+    .order("name")
+    .limit(limit);
   if (error) throw error;
   return (data ?? []).map((t) => ({ id: String(t.id), name: t.name, federationText: t.federation, category: t.category, year: Number(t.year) }));
 }
@@ -157,6 +164,8 @@ export interface NotificationsSummary {
   contractsExpiring: number;
   inactive: number;
   newGems: number;
+  favoritedClubs: number;
+  favoritedTournaments: number;
 }
 
 // Real signals only (Session 55 — the hero card used to show a hardcoded "2
@@ -165,11 +174,26 @@ export interface NotificationsSummary {
 // 30+ days without a súmula, or currently qualify as "categoria acima".
 // "newGems" is really "current gems among favorites", not a true delta —
 // there's no per-user "last seen" state to detect a genuine change yet.
+// Session 57: also surfaces favorited-club/tournament counts (WS5) — no
+// generic "system news" table exists and building one wasn't requested, so
+// this stays a rollup of what's genuinely new across the user's 3 favorite
+// categories, not a separate announcements feature.
 export async function loadNotificationsSummary(client: SupabaseClient, userId: string): Promise<NotificationsSummary> {
-  const favs = await client.from("favoritos").select("fb_id_atleta").eq("user_id", userId);
+  const [favs, clubFavCount, tournamentFavCount] = await Promise.all([
+    client.from("favoritos").select("fb_id_atleta").eq("user_id", userId),
+    client.from("favoritos_clube").select("id", { count: "exact", head: true }).eq("user_id", userId),
+    client.from("favoritos_torneio").select("id", { count: "exact", head: true }).eq("user_id", userId),
+  ]);
   if (favs.error) throw favs.error;
+  if (clubFavCount.error) throw clubFavCount.error;
+  if (tournamentFavCount.error) throw tournamentFavCount.error;
+  const favoritedClubs = clubFavCount.count ?? 0;
+  const favoritedTournaments = tournamentFavCount.count ?? 0;
+
   const bids = (favs.data ?? []).map((f) => f.fb_id_atleta);
-  if (bids.length === 0) return { count: 0, contractsExpiring: 0, inactive: 0, newGems: 0 };
+  if (bids.length === 0) {
+    return { count: 0, contractsExpiring: 0, inactive: 0, newGems: 0, favoritedClubs, favoritedTournaments };
+  }
 
   const { data, error } = await client
     .from("view_atleta_resumo")
@@ -180,5 +204,5 @@ export async function loadNotificationsSummary(client: SupabaseClient, userId: s
   const contractsExpiring = (data ?? []).filter((r) => r.contract_status === "expiring_soon" || r.contract_status === "expired").length;
   const inactive = (data ?? []).filter((r) => r.is_inactive_30d).length;
   const newGems = (data ?? []).filter((r) => r.games_above_current_category > 0).length;
-  return { count: contractsExpiring + inactive + newGems, contractsExpiring, inactive, newGems };
+  return { count: contractsExpiring + inactive + newGems, contractsExpiring, inactive, newGems, favoritedClubs, favoritedTournaments };
 }

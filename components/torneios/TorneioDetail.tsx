@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ArrowLeft, Trophy, ShieldQuestion, Goal } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { ClubeCrest } from "@/components/app/ClubeCrest";
+import { TournamentFavoriteButton } from "@/components/favorites/TournamentFavoriteButton";
 import { useT } from "@/lib/i18n/I18nProvider";
 import type { TorneioDetail as TorneioDetailData } from "@/lib/services/torneios";
 
@@ -19,12 +20,17 @@ export function TorneioDetail({ data }: { data: TorneioDetailData }) {
       </Link>
 
       <section className="matchday-surface p-5 sm:p-7">
-        <div className="mb-2 flex items-center gap-2 text-brand"><Trophy size={18} /><span className="text-xs font-extrabold uppercase tracking-widest">{breadcrumb || t("torneios.badge")}</span></div>
-        <h1 className="matchday-heading text-3xl">{data.name}</h1>
-        <div className="mt-4 flex flex-wrap gap-2">
-          <Badge tone="brand">{data.federacaoNome ?? data.federationText}</Badge>
-          {data.category && <Badge tone="neutral">{data.category}</Badge>}
-          <Badge tone="neutral">{data.year}</Badge>
+        <div className="flex flex-wrap items-start justify-between gap-5">
+          <div>
+            <div className="mb-2 flex items-center gap-2 text-brand"><Trophy size={18} /><span className="text-xs font-extrabold uppercase tracking-widest">{breadcrumb || t("torneios.badge")}</span></div>
+            <h1 className="matchday-heading text-3xl">{data.name}</h1>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Badge tone="brand">{data.federacaoNome ?? data.federationText}</Badge>
+              {data.category && <Badge tone="neutral">{data.category}</Badge>}
+              <Badge tone="neutral">{data.year}</Badge>
+            </div>
+          </div>
+          <TournamentFavoriteButton torneioId={data.id} />
         </div>
       </section>
 

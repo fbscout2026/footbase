@@ -14,6 +14,7 @@ export function Artilheiros({ athletes: scorers }: { athletes: ScorerRow[] }) {
       title={t("dashboard.scorers.title")}
       subtitle={t("dashboard.scorers.subtitle")}
       icon={Goal}
+      scrollable
     >
       {scorers.length === 0 ? (
         <p className="text-sm text-muted">{t("dashboard.scorers.empty")}</p>

@@ -11,13 +11,17 @@ import type { DashboardHeroStats, NotificationsSummary } from "@/lib/services/da
 export function HeroBanner({ stats, notifications }: { stats: DashboardHeroStats; notifications: NotificationsSummary }) {
   const { t } = useT();
 
-  const notificationsHint = notifications.count > 0
-    ? [
-        notifications.contractsExpiring > 0 ? `${notifications.contractsExpiring} ${t("dashboard.hero.notif.contracts")}` : null,
-        notifications.inactive > 0 ? `${notifications.inactive} ${t("dashboard.hero.notif.inactive")}` : null,
-        notifications.newGems > 0 ? `${notifications.newGems} ${t("dashboard.hero.notif.gems")}` : null,
-      ].filter(Boolean).join(" · ")
-    : t("dashboard.hero.notif.none");
+  // Session 57: also surfaces favorited clubs/tournaments (WS5/WS3b) — useful info
+  // regardless of whether there's an "alert" among them, so these two are checked
+  // independently of `notifications.count` (which stays scoped to athlete alerts).
+  const notificationParts = [
+    notifications.contractsExpiring > 0 ? `${notifications.contractsExpiring} ${t("dashboard.hero.notif.contracts")}` : null,
+    notifications.inactive > 0 ? `${notifications.inactive} ${t("dashboard.hero.notif.inactive")}` : null,
+    notifications.newGems > 0 ? `${notifications.newGems} ${t("dashboard.hero.notif.gems")}` : null,
+    notifications.favoritedClubs > 0 ? `${notifications.favoritedClubs} ${t("dashboard.hero.notif.clubs")}` : null,
+    notifications.favoritedTournaments > 0 ? `${notifications.favoritedTournaments} ${t("dashboard.hero.notif.tournaments")}` : null,
+  ].filter(Boolean);
+  const notificationsHint = notificationParts.length > 0 ? notificationParts.join(" · ") : t("dashboard.hero.notif.none");
 
   const cards: { icon: LucideIcon; label: string; value: string; hint?: string; href?: string }[] = [
     {

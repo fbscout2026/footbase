@@ -2,11 +2,14 @@
 
 import { useState } from "react";
 import { Building2, UserRound } from "lucide-react";
+import { AsYouType, type CountryCode } from "libphonenumber-js";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
+import { CountrySelect } from "@/components/ui/CountrySelect";
 import { cn } from "@/lib/cn";
 import { createClient } from "@/lib/supabase/client";
 import { useT } from "@/lib/i18n/I18nProvider";
+import { findCountry } from "@/lib/countries";
 
 type Role = "club" | "agent";
 
@@ -15,6 +18,7 @@ export function SignUpForm() {
   const [role, setRole] = useState<Role>("club");
   const [fullName, setFullName] = useState("");
   const [organization, setOrganization] = useState("");
+  const [country, setCountry] = useState("BR");
   const [whatsapp, setWhatsapp] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -48,6 +52,7 @@ export function SignUpForm() {
             full_name: fullName,
             whatsapp: whatsapp || null,
             organization: organization || null,
+            country,
             // agents also get an agency_name from the same field
             agency_name: role === "agent" ? organization || null : null,
           },
@@ -110,14 +115,29 @@ export function SignUpForm() {
         placeholder={t("auth.signup.orgPlaceholder")}
       />
 
-      <Input
-        id="whatsapp"
-        label={t("auth.signup.whatsapp")}
-        type="tel"
-        value={whatsapp}
-        onChange={(e) => setWhatsapp(e.target.value)}
-        placeholder={t("auth.signup.whatsappPlaceholder")}
-      />
+      <label className="flex flex-col gap-1.5">
+        <span className="text-sm font-medium text-muted">{t("auth.signup.country")}</span>
+        <CountrySelect value={country} onChange={setCountry} ariaLabel={t("auth.signup.country")} />
+      </label>
+
+      <div className="flex flex-col gap-1.5">
+        <label htmlFor="whatsapp" className="text-sm font-medium text-muted">
+          {t("auth.signup.whatsapp")}
+        </label>
+        <div className="relative">
+          <span className="pointer-events-none absolute inset-y-0 left-3.5 flex items-center text-sm text-muted">
+            {findCountry(country)?.dialCode ?? "+55"}
+          </span>
+          <input
+            id="whatsapp"
+            type="tel"
+            value={whatsapp}
+            onChange={(e) => setWhatsapp(new AsYouType(country as CountryCode).input(e.target.value))}
+            placeholder={t("auth.signup.whatsappPlaceholder")}
+            className="w-full rounded-sm border border-border bg-background py-2.5 pr-3.5 pl-16 text-sm text-foreground outline-none transition-colors placeholder:text-muted/60 hover:border-muted/60 focus:border-brand focus:ring-1 focus:ring-brand/30"
+          />
+        </div>
+      </div>
 
       <Input
         id="email"

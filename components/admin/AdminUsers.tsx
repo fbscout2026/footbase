@@ -7,7 +7,7 @@ import { useSession } from "@/lib/auth/SessionProvider";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { createClient } from "@/lib/supabase/client";
-import { setAccountStatus, type AdminUser, type UserStatus } from "@/lib/services/admin-users";
+import { setAccountStatus, rejectUserWithReason, type AdminUser, type UserStatus } from "@/lib/services/admin-users";
 import { promoteToAdmin, type PromotionRecord } from "@/lib/services/admin-promotions";
 import { UserCheck, ShieldPlus } from "lucide-react";
 
@@ -27,6 +27,11 @@ export function AdminUsers({ users, promotionHistory }: { users: AdminUser[] | n
   const [justificativa, setJustificativa] = useState("");
   const [promoting, setPromoting] = useState(false);
   const [promoteError, setPromoteError] = useState("");
+
+  const [rejectTarget, setRejectTarget] = useState<AdminUser | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
+  const [rejecting, setRejecting] = useState(false);
+  const [rejectError, setRejectError] = useState("");
 
   const all = users ?? [];
   const filtered = useMemo(() => (filter === "all" ? all : all.filter((u) => u.accountStatus === filter)), [all, filter]);
@@ -49,6 +54,20 @@ export function AdminUsers({ users, promotionHistory }: { users: AdminUser[] | n
       setPromoteError(t("admin.users.promoteError"));
     } finally {
       setPromoting(false);
+    }
+  }
+
+  async function confirmReject() {
+    if (!rejectTarget) return;
+    setRejecting(true); setRejectError("");
+    try {
+      await rejectUserWithReason(client, rejectTarget.userId, rejectReason);
+      setRejectTarget(null); setRejectReason("");
+      router.refresh();
+    } catch {
+      setRejectError(t("admin.users.rejectError"));
+    } finally {
+      setRejecting(false);
     }
   }
 
@@ -85,6 +104,24 @@ export function AdminUsers({ users, promotionHistory }: { users: AdminUser[] | n
       </section>
     )}
 
+    {rejectTarget && (
+      <section className="matchday-surface border-2 border-danger p-5">
+        <h3 className="matchday-heading flex items-center gap-2 text-lg text-danger">{t("admin.users.rejectTitle")}</h3>
+        <p className="mt-1 text-sm text-muted">{t("admin.users.rejectConfirm")} <strong className="text-foreground">{rejectTarget.fullName ?? rejectTarget.email ?? rejectTarget.userId}</strong></p>
+        <label className="mt-3 flex flex-col gap-1.5">
+          <span className="text-sm font-medium text-muted">{t("admin.users.rejectReason")}</span>
+          <textarea value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} minLength={20} maxLength={2000} rows={3} required
+            className="border border-border bg-surface px-3.5 py-2.5 text-sm outline-none focus:border-brand" />
+        </label>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button type="button" disabled={rejecting || rejectReason.trim().length < 20} onClick={confirmReject}
+            className="min-h-9 border border-danger/40 px-3 text-xs font-extrabold uppercase text-danger hover:bg-danger/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-60">{rejecting ? t("common.loading") : t("admin.users.rejectSubmit")}</button>
+          <Button type="button" variant="secondary" disabled={rejecting} onClick={() => { setRejectTarget(null); setRejectReason(""); setRejectError(""); }}>{t("common.cancel")}</Button>
+        </div>
+        {rejectError && <p role="alert" className="mt-2 text-sm text-danger">{rejectError}</p>}
+      </section>
+    )}
+
     <section className="matchday-surface overflow-hidden">
       {filtered.length === 0
         ? <p className="p-8 text-center text-sm text-muted">{t("admin.users.empty")}</p>
@@ -112,7 +149,7 @@ export function AdminUsers({ users, promotionHistory }: { users: AdminUser[] | n
                   ? <span className="text-xs text-muted">{t("admin.users.you")}</span>
                   : <div className="flex flex-wrap gap-2">
                       {u.accountStatus !== "approved" && <Button type="button" disabled={busy === u.userId} onClick={() => update(u.userId, "approved")}>{t("admin.users.approve")}</Button>}
-                      {u.accountStatus !== "rejected" && <button type="button" disabled={busy === u.userId} onClick={() => update(u.userId, "rejected")} className="min-h-9 border border-danger/40 px-3 text-xs font-extrabold uppercase text-danger hover:bg-danger/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-60">{t("admin.users.reject")}</button>}
+                      {u.accountStatus !== "rejected" && <button type="button" disabled={busy === u.userId} onClick={() => { setRejectTarget(u); setRejectReason(""); setRejectError(""); }} className="min-h-9 border border-danger/40 px-3 text-xs font-extrabold uppercase text-danger hover:bg-danger/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-60">{t("admin.users.reject")}</button>}
                       {u.role !== "admin" && u.accountStatus === "approved" && <button type="button" onClick={() => { setPromoteTarget(u); setJustificativa(""); setPromoteError(""); }} className="min-h-9 border border-brand/40 px-3 text-xs font-extrabold uppercase text-brand hover:bg-brand/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2">{t("admin.users.promote")}</button>}
                     </div>}
               </td>

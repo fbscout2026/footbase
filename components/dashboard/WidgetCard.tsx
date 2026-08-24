@@ -1,15 +1,21 @@
 import type { LucideIcon } from "lucide-react";
+import { cn } from "@/lib/cn";
 
 export function WidgetCard({
   title,
   subtitle,
   icon: Icon,
   children,
+  scrollable = false,
 }: {
   title: string;
   subtitle?: string;
   icon: LucideIcon;
   children: React.ReactNode;
+  /** Session 57 — caps the body height and scrolls internally instead of growing the
+   * page, so list cards can show up to 20 rows without pushing everything below them
+   * down the page. */
+  scrollable?: boolean;
 }) {
   return (
     <section className="matchday-surface">
@@ -24,7 +30,9 @@ export function WidgetCard({
           {subtitle && <p className="truncate text-xs normal-case text-muted">{subtitle}</p>}
         </div>
       </header>
-      <div className="p-5">{children}</div>
+      <div className={cn("p-5", scrollable && "scroll-brand max-h-[420px] overflow-y-auto")}>
+        {children}
+      </div>
     </section>
   );
 }

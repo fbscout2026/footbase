@@ -133,6 +133,9 @@ create table if not exists profiles (
   organization text,                     -- Empresa / Agência / Clube informed at signup
   password_reset_used boolean not null default false, -- self-service reset: one lifetime use
   active_session_id uuid,                -- Session 57: single active device — see middleware.ts
+  country text,                          -- Session 57: signup country (ISO code) — see CountrySelect.tsx
+  rejection_reason text                  -- Session 57: admin-authored, never self-editable — see guard_profile_update()
+    check (rejection_reason is null or char_length(btrim(rejection_reason)) between 20 and 2000),
   created_at timestamptz not null default now()
 );
 
@@ -178,7 +181,7 @@ security definer
 set search_path = public
 as $$
 begin
-  if private.is_admin() or auth.role() = 'service_role' then
+  if private.is_admin() or auth.role() = 'service_role' or current_setting('footbase.bypass_guard', true) = 'true' then
     return new;
   end if;
 
@@ -188,9 +191,9 @@ begin
     end if;
   end if;
 
-  if (to_jsonb(new) - array['full_name', 'whatsapp', 'organization', 'password_reset_used', 'active_session_id']::text[])
+  if (to_jsonb(new) - array['full_name', 'whatsapp', 'organization', 'password_reset_used', 'active_session_id', 'country']::text[])
     is distinct from
-    (to_jsonb(old) - array['full_name', 'whatsapp', 'organization', 'password_reset_used', 'active_session_id']::text[])
+    (to_jsonb(old) - array['full_name', 'whatsapp', 'organization', 'password_reset_used', 'active_session_id', 'country']::text[])
   then
     raise exception 'users may only edit full_name, whatsapp and organization';
   end if;
@@ -205,6 +208,53 @@ create trigger trg_guard_profile_update
   for each row execute function guard_profile_update();
 
 revoke execute on function guard_profile_update() from public, anon, authenticated;
+
+-- Session 57 (WS7) — the only door back to 'pending' from 'rejected'; guard_profile_update()
+-- never lets a self-service user touch account_status directly at all, so a narrow
+-- SECURITY DEFINER RPC (same shape as admin_promover_para_admin, but scoped to the
+-- caller's own row, no target-user argument) is the sole path. The caller here is
+-- never an admin, so it sets a transaction-local `footbase.bypass_guard` flag right
+-- before its own already-validated UPDATE, then resets it to 'false' immediately
+-- after (WS7 hotfixes, 20260824040000 + 20260824050000 — the RPC's internal UPDATE
+-- was unconditionally blocked by the same allowlist before the first hotfix, and
+-- the flag stayed 'true' for the rest of the whole transaction — not just the one
+-- UPDATE — before the second; both found live via
+-- supabase/tests/solicitar_revisao_security.sql). The flag is not reachable from
+-- the client: set_config()/current_setting() live in pg_catalog, outside the
+-- schema PostgREST exposes as callable RPCs.
+create or replace function solicitar_revisao_conta()
+returns profiles
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_status text;
+  v_result profiles;
+begin
+  select account_status into v_status from profiles where id = auth.uid() for update;
+  if not found then
+    raise exception 'profile not found';
+  end if;
+  if v_status <> 'rejected' then
+    raise exception 'only a rejected account may request review';
+  end if;
+
+  perform set_config('footbase.bypass_guard', 'true', true);
+
+  update profiles
+    set account_status = 'pending', rejection_reason = null
+    where id = auth.uid()
+    returning * into v_result;
+
+  perform set_config('footbase.bypass_guard', 'false', true);
+
+  return v_result;
+end;
+$$;
+
+revoke execute on function solicitar_revisao_conta() from public, anon;
+grant execute on function solicitar_revisao_conta() to authenticated;
 
 -- ----------------------------------------------------------------------------
 -- clubes (seed profiles — born only via ingestion, claimed via requests)
@@ -297,14 +347,15 @@ declare
   meta jsonb := coalesce(new.raw_user_meta_data, '{}'::jsonb);
   signup_role text := case when meta->>'role' = 'club' then 'club' else 'agent' end;
 begin
-  insert into profiles (id, role, account_status, full_name, whatsapp, organization)
+  insert into profiles (id, role, account_status, full_name, whatsapp, organization, country)
   values (
     new.id,
     signup_role,
     'pending',
     meta->>'full_name',
     meta->>'whatsapp',
-    meta->>'organization'
+    meta->>'organization',
+    meta->>'country'
   );
 
   if signup_role = 'agent' then
@@ -731,6 +782,29 @@ create index if not exists idx_favoritos_user on favoritos (user_id);
 create index if not exists idx_favoritos_fb_id on favoritos (fb_id_atleta);
 
 -- ----------------------------------------------------------------------------
+-- favoritos_clube / favoritos_torneio (Session 57) — same shortlist concept as
+-- favoritos above, minus rating/notes: a plain toggle, nothing to update after
+-- creation.
+-- ----------------------------------------------------------------------------
+create table if not exists favoritos_clube (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users (id) on delete cascade,
+  club_id uuid not null references clubes (id) on delete cascade,
+  created_at timestamptz not null default now(),
+  unique (user_id, club_id)
+);
+create index if not exists idx_favoritos_clube_user on favoritos_clube (user_id);
+
+create table if not exists favoritos_torneio (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users (id) on delete cascade,
+  torneio_id uuid not null references torneios (id) on delete cascade,
+  created_at timestamptz not null default now(),
+  unique (user_id, torneio_id)
+);
+create index if not exists idx_favoritos_torneio_user on favoritos_torneio (user_id);
+
+-- ----------------------------------------------------------------------------
 -- prancheta_tatica (tactical board) + slots
 -- ----------------------------------------------------------------------------
 create table if not exists prancheta_tatica (
@@ -1070,6 +1144,8 @@ alter table atuacoes_sumula enable row level security;
 alter table atuacao_cartoes enable row level security;
 alter table atleta_duplicate_candidates enable row level security;
 alter table favoritos enable row level security;
+alter table favoritos_clube enable row level security;
+alter table favoritos_torneio enable row level security;
 alter table prancheta_tatica enable row level security;
 alter table prancheta_slots enable row level security;
 alter table solicitacoes_reivindicacao enable row level security;
@@ -1221,6 +1297,28 @@ create policy favoritos_owner_update on favoritos
   using (((select auth.uid()) = user_id and private.is_approved()) or private.is_admin())
   with check (((select auth.uid()) = user_id and private.is_approved()) or private.is_admin());
 create policy favoritos_owner_delete on favoritos
+  for delete to authenticated
+  using (((select auth.uid()) = user_id and private.is_approved()) or private.is_admin());
+
+-- favoritos_clube / favoritos_torneio: same private-to-owner shape, no update policy
+-- (plain toggle, no rating/notes payload to edit after creation).
+create policy favoritos_clube_owner_select on favoritos_clube
+  for select to authenticated
+  using (((select auth.uid()) = user_id and private.is_approved()) or private.is_admin());
+create policy favoritos_clube_owner_insert on favoritos_clube
+  for insert to authenticated
+  with check (((select auth.uid()) = user_id and private.is_approved()) or private.is_admin());
+create policy favoritos_clube_owner_delete on favoritos_clube
+  for delete to authenticated
+  using (((select auth.uid()) = user_id and private.is_approved()) or private.is_admin());
+
+create policy favoritos_torneio_owner_select on favoritos_torneio
+  for select to authenticated
+  using (((select auth.uid()) = user_id and private.is_approved()) or private.is_admin());
+create policy favoritos_torneio_owner_insert on favoritos_torneio
+  for insert to authenticated
+  with check (((select auth.uid()) = user_id and private.is_approved()) or private.is_admin());
+create policy favoritos_torneio_owner_delete on favoritos_torneio
   for delete to authenticated
   using (((select auth.uid()) = user_id and private.is_approved()) or private.is_admin());
 
@@ -1577,6 +1675,24 @@ left join lateral (
   join torneios t on t.id = p.torneio_id
   where p.home_club_id = c.id or p.away_club_id = c.id
 ) mp on true;
+
+-- ============================================================================
+-- view_torneios_destaque — real "featured" signal for the dashboard (Session 57):
+-- ranks by súmulas ingested in the last 30 days per tournament (partidas_sumula's
+-- own scraper-written created_at), instead of the old plain alphabetical listing.
+-- ============================================================================
+create or replace view view_torneios_destaque
+with (security_invoker = true) as
+select
+  t.id,
+  t.name,
+  t.federation,
+  t.category,
+  t.year,
+  count(ps.id) filter (where ps.created_at >= now() - interval '30 days') as recent_activity
+from torneios t
+left join partidas_sumula ps on ps.torneio_id = t.id
+group by t.id, t.name, t.federation, t.category, t.year;
 
 -- ----------------------------------------------------------------------------
 -- Phase 4.4: claimed-club management panel

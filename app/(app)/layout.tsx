@@ -4,6 +4,8 @@ import { SessionProvider } from "@/lib/auth/SessionProvider";
 import { AppHeader } from "@/components/app/AppHeader";
 import { AppNav } from "@/components/app/AppNav";
 import { FavoritesProvider } from "@/lib/favorites/FavoritesProvider";
+import { ClubFavoritesProvider } from "@/lib/favorites/ClubFavoritesProvider";
+import { TournamentFavoritesProvider } from "@/lib/favorites/TournamentFavoritesProvider";
 import { FavoritesLoadNotice } from "@/components/app/FavoritesLoadNotice";
 
 // Server-side route guard for every authed page under (app). Favorites used
@@ -28,16 +30,20 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           they don't belong to the now-current auth.uid(). Same pattern already used for
           the admin panel's ?user= remount. */}
       <FavoritesProvider key={session.userId} initialFavorites={null}>
-        <div className="min-h-screen bg-background">
-          <AppHeader
-            fullName={session.fullName}
-            email={session.email}
-            role={session.role}
-          />
-          <AppNav />
-          <FavoritesLoadNotice />
-          <main id="main-content" className="w-full px-4 py-5 sm:px-6">{children}</main>
-        </div>
+        <ClubFavoritesProvider key={session.userId} initial={null}>
+          <TournamentFavoritesProvider key={session.userId} initial={null}>
+            <div className="min-h-screen bg-background">
+              <AppHeader
+                fullName={session.fullName}
+                email={session.email}
+                role={session.role}
+              />
+              <AppNav />
+              <FavoritesLoadNotice />
+              <main id="main-content" className="w-full px-4 py-5 sm:px-6">{children}</main>
+            </div>
+          </TournamentFavoritesProvider>
+        </ClubFavoritesProvider>
       </FavoritesProvider>
     </SessionProvider>
   );

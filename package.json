@@ -25,6 +25,7 @@
     "@supabase/ssr": "^0.5.2",
     "@supabase/supabase-js": "^2.47.0",
     "clsx": "^2.1.1",
+    "libphonenumber-js": "^1.13.11",
     "lucide-react": "^0.468.0",
     "next": "^15.1.0",
     "pdf-parse": "^1.1.4",
