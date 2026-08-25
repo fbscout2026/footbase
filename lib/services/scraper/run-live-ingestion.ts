@@ -51,6 +51,7 @@ import { discoverFerjMonth, fetchFerjMatchPage } from "./discovery/ferj-discover
 import { discoverFmfCompetition } from "./discovery/fmf-discover.ts";
 import { parseFmfSumula } from "./parse-fmf-sumula.ts";
 import { discoverFgfCompetition, fetchFgfSumulaUrl } from "./discovery/fgf-discover.ts";
+import { discoverFesCompetition, fetchFesSumulaUrl, fesClubSlug } from "./discovery/fes-discover.ts";
 import { recordScrapingJob, getDoneJobRefs } from "./scraping-jobs.ts";
 import { resolveAthleteIdentity } from "./resolve-athlete-identity.ts";
 import { seedProvisionalAthlete, nextProvisionalBid } from "./provisional-athlete.ts";
@@ -92,6 +93,12 @@ interface FgfSourceConfig {
   kind: "fgf";
   label: string;
   competitionId: number; // fgf.com.br/competicoes/amador/{id} — phases re-derived fresh every run
+}
+
+interface FesSourceConfig {
+  kind: "fes";
+  label: string;
+  slug: string; // futebolcapixaba.com/campeonatos/{slug} — one per base category, embeds the season year
 }
 
 const FPF_SOURCES: FpfSourceConfig[] = [
@@ -269,6 +276,21 @@ const FGF_SOURCES: FgfSourceConfig[] = [
   { kind: "fgf", label: "FGF Gauchão Sub 17 A2", competitionId: 602 },
   { kind: "fgf", label: "FGF Gauchão Sub 15", competitionId: 62 },
   { kind: "fgf", label: "FGF Gauchão Sub 13", competitionId: 717 },
+];
+
+// One entry per base category, mapped live off futebolcapixaba.com's own
+// "Campeonatos" listing (2026 season) — confirmed live: no bot-detection, one static
+// page lists the whole season's match links, súmula is the same "SÚMULA ON-LINE"
+// template CBF uses (see discovery/fes-discover.ts's module doc). Feminino excluded,
+// same pre-existing project-wide decision as every other source.
+// ⚠️ YEARLY MAINTENANCE: these slugs embed "2026" — re-derive from
+// futebolcapixaba.com/campeonatos/ every season, same caveat as CBF_SOURCES/FMF_SOURCES.
+const FES_SOURCES: FesSourceConfig[] = [
+  { kind: "fes", label: "FES Estadual Sub 11", slug: "estadual-sub-11-2026" },
+  { kind: "fes", label: "FES Estadual Sub 13", slug: "estadual-sub-13-2026" },
+  { kind: "fes", label: "FES Estadual Sub 15", slug: "estadual-sub-15-2026" },
+  { kind: "fes", label: "FES Estadual Sub 17", slug: "estadual-sub-17-2026" },
+  { kind: "fes", label: "FES Estadual Sub 20", slug: "estadual-sub-20-2026" },
 ];
 
 export interface ExecutorItemResult {
@@ -543,6 +565,32 @@ async function resolveSourceAthleteIdentities(admin: SupabaseClient, fonte: stri
         { fonte, externalId, cbfBid: athlete.bid, name: athlete.name, birthDate: athlete.birthDate ?? null },
         { existing: state.existingAthletes, mappings: state.mappings },
       );
+      // "atleta_fontes.fb_id" is a foreign key into `atletas` — it can only be
+      // written once that row actually exists. Tiers "bid"/"matched" always
+      // resolve to an athlete that's ALREADY a real `atletas` row (that's what
+      // confirmed them), so the insert below is safe there. "new"/"ambiguous"
+      // is the opposite: nothing exists yet, `ingestMatch` (called by the
+      // caller right after this) is what will actually create that row — an
+      // insert here would violate the FK immediately.
+      //
+      // Real bug found live (Session 57, FES's first live write): every match
+      // with at least one genuinely brand-new athlete (any youth category's
+      // norm — most SUB-11/13 kids have never appeared in any source before)
+      // threw a foreign-key violation right here and aborted the ENTIRE match
+      // before `ingestMatch` ever ran, silently zeroing out the club/tournament/
+      // every OTHER athlete's appearance too — not a FES-specific bug, this
+      // function is shared by CBF/FMF/FGF and carries the exact same flaw for
+      // any of their own brand-new athletes.
+      //
+      // Skipping the insert here isn't a real loss: for these direct-bid
+      // sources, a "new" mapping is `id_externo === String(resolvedBid)` by
+      // construction — a trivial self-reference, not real crosswalk
+      // information (unlike FERJ's bira→fb_id bridge, where the ids genuinely
+      // differ). It self-heals on the very next time this athlete is seen
+      // (even in a separate future run): `ingestMatch` will have created the
+      // `atletas` row by then, so `resolveAthleteIdentity`'s tier 2 ("bid") now
+      // confirms it and the insert below succeeds normally.
+      const athleteRowExistsYet = res.kind === "bid" || res.kind === "matched";
       if (res.kind === "bid" || res.kind === "mapped" || res.kind === "matched") {
         resolvedBid = res.bid;
       } else {
@@ -552,7 +600,7 @@ async function resolveSourceAthleteIdentities(admin: SupabaseClient, fonte: stri
         resolvedBid = athlete.bid;
         state.existingAthletes.push({ bid: resolvedBid, name: athlete.name, birthDate: athlete.birthDate ?? "" });
       }
-      if (!dryRun) {
+      if (!dryRun && athleteRowExistsYet) {
         const insM = await admin.from("atleta_fontes").insert({ fonte, id_externo: externalId, fb_id: resolvedBid });
         if (insM.error) throw insM.error;
       }
@@ -856,6 +904,92 @@ async function processFgfSource(admin: SupabaseClient, cfg: FgfSourceConfig, dry
   return results;
 }
 
+async function processFesSource(admin: SupabaseClient, cfg: FesSourceConfig, dryRun: boolean, touch: () => void): Promise<ExecutorItemResult[]> {
+  const results: ExecutorItemResult[] = [];
+
+  // Same resolver wiring as CBF/FMF/FGF (see `resolveSourceAthleteIdentities`'s doc)
+  // — FES's roster carries the athlete's real CBF bid directly, no crosswalk needed.
+  const identityState = await loadSourceIdentityState(admin, "fes");
+  touch();
+
+  const { matches: matchRefsAll, clubCrests } = await discoverFesCompetition(cfg.slug);
+  touch();
+
+  // Same skip-already-done optimization as every other source — `matchUrl` (the
+  // match page's own URL) is the stable ref: FES exposes no numeric match id to `fetch`.
+  const doneRefs = await getDoneJobRefs(admin, "FES", "sumula");
+  const matchRefs = matchRefsAll.filter((ref) => !doneRefs.has(ref.matchUrl));
+  const skipped = matchRefsAll.length - matchRefs.length;
+  if (skipped > 0) {
+    console.log(`[executor] FES: ${cfg.label} — ${skipped} já processada(s), pulando`);
+    for (let i = 0; i < skipped; i++) results.push({ source: cfg.label, sourceUrl: "", outcome: "skipped-already-done", detail: "já processada em run anterior" });
+  }
+
+  const outcomes = await forEachRateLimited(
+    matchRefs,
+    async (ref) => {
+      const sumulaUrl = await fetchFesSumulaUrl(ref.matchUrl);
+      if (!sumulaUrl) return { outcome: "no-sumula-yet" as const, detail: "no súmula link on the match page yet", sourceUrl: "" };
+
+      const text = await fetchSumulaText(sumulaUrl);
+      // Unlike FGF (whose discovery page's own match card already carries both club
+      // names before the súmula is even fetched), FES's minimal two-hop discovery
+      // (see discovery/fes-discover.ts) only has the match URL at this point — so the
+      // source keys are computed AFTER parsing, from the names the súmula itself
+      // reports, rather than injected as opts up front like every other adapter does.
+      const { match } = parseCbfSumula(text, { sourceUrl: sumulaUrl, federation: "FES", clubFederacao: "FES" });
+      match.home.sourceKey = `fes-club:${fesClubSlug(match.home.name)}`;
+      match.away.sourceKey = `fes-club:${fesClubSlug(match.away.name)}`;
+      // Session 57 — the competition page's own standings table pairs each club's
+      // name with its real crest image (see discovery/fes-discover.ts's
+      // `parseFesClubCrests` doc); a lookup miss here just leaves the club without a
+      // crest, never attaches the wrong one.
+      match.home.crestUrl = clubCrests.get(fesClubSlug(match.home.name)) ?? null;
+      match.away.crestUrl = clubCrests.get(fesClubSlug(match.away.name)) ?? null;
+
+      await resolveSourceAthleteIdentities(admin, "fes", match, identityState, dryRun);
+      const reconciliationErrors = reconcileParsedMatch(match);
+      if (reconciliationErrors.length > 0) {
+        return { outcome: "reconciliation-failed" as const, detail: reconciliationErrors.join("; "), sourceUrl: sumulaUrl };
+      }
+      const report = await ingestMatch(admin, match, { dryRun });
+      const detail = dryRun
+        ? `plan: ${report.appearancesUpserted} atuações, ${report.athletesSeeded} atletas novos`
+        : `gravado: ${report.appearancesUpserted} atuações` + (report.errors.length ? `; erros: ${report.errors.join("; ")}` : "");
+      if (!dryRun && report.errors.length > 0) return { outcome: "write-failed" as const, detail, sourceUrl: sumulaUrl };
+      return { outcome: "ingested" as const, detail, sourceUrl: sumulaUrl };
+    },
+    // Wider than the other sources' usual 900/400 (Session 57, user request): FES's
+    // site is a plain WordPress install with no infrastructure built for heavy
+    // automated traffic, and this exact go-live session already hit it repeatedly
+    // in a short window (investigation + 2 full dry-runs + several isolated repro
+    // scripts + 2 live-write passes) before it ever ran under its real production
+    // cadence (2x/week). Wider spacing here is a safety margin against a source
+    // that hasn't proven itself under normal load yet, not a reaction to an actual
+    // block (never got a 403/429 — every slowdown seen so far was self-inflicted
+    // from repeated testing, not a rejection).
+    { minDelayMs: 1500, jitterMs: 500, onItemDone: touch },
+  );
+
+  for (let i = 0; i < matchRefs.length; i++) {
+    const o = outcomes[i]!;
+    const outcome = o.error ? "fetch-failed" : o.result!.outcome;
+    const detail = o.error ?? o.result!.detail;
+    const sourceUrl = o.error ? "" : o.result!.sourceUrl;
+    results.push({ source: cfg.label, sourceUrl, outcome, detail });
+    if (!dryRun) {
+      await recordScrapingJob(
+        admin,
+        { source: "FES", jobType: "sumula", ref: matchRefs[i]!.matchUrl },
+        outcome === "ingested"
+          ? { status: "done", payload: { url: sourceUrl, competition: cfg.label } }
+          : { status: "failed", error: detail, payload: { url: sourceUrl, competition: cfg.label } },
+      );
+    }
+  }
+  return results;
+}
+
 // Confirmed live (Session 54, continuation): even with a timeout on every individual
 // `fetch()` (discovery, súmula, crest), a source can still hang the ENTIRE executor
 // indefinitely for reasons no per-request timeout catches. A `try/catch` around a
@@ -1030,6 +1164,19 @@ async function main(): Promise<void> {
       allResults.push(...(await wd.guard(processFgfSource(admin, cfg, dryRun, wd.touch))));
     } catch (e) {
       console.error(`[executor] FGF source failed entirely: ${cfg.label} —`, e instanceof Error ? e.message : e);
+    }
+  }
+
+  const fesSourcesToRun = (onlySource && onlySource !== "fes" ? [] : FES_SOURCES).filter(
+    (cfg) => !onlyCompetition || cfg.label.toLowerCase().includes(onlyCompetition),
+  );
+  for (const cfg of fesSourcesToRun) {
+    console.log(`[executor] FES: ${cfg.label}`);
+    try {
+      const wd = createWatchdog(WATCHDOG_IDLE_MS, `FES ${cfg.label}`);
+      allResults.push(...(await wd.guard(processFesSource(admin, cfg, dryRun, wd.touch))));
+    } catch (e) {
+      console.error(`[executor] FES source failed entirely: ${cfg.label} —`, e instanceof Error ? e.message : e);
     }
   }
 

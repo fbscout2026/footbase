@@ -46,7 +46,17 @@ export async function forEachRateLimited<T, R>(
       const result = await fn(item, i);
       out.push({ item, result, error: null });
     } catch (e) {
-      out.push({ item, result: null, error: e instanceof Error ? e.message : String(e) });
+      // Not every thrown value is an `Error` instance — a Supabase client error
+      // (e.g. `throw insM.error` elsewhere in this codebase) is a plain object
+      // `{message, details, hint, code}`, and `String(plainObject)` collapses to
+      // the useless "[object Object]", which is exactly what happened live
+      // (Session 57) while diagnosing FES's first live-write failure: every
+      // logged detail read "[object Object]", hiding the real Postgres error
+      // for hours until reproduced in isolation. Prefer a real `.message` on
+      // ANY object that has one, falling back to `String()` only for values
+      // that truly have neither (a plain string/number throw, genuinely rare).
+      const message = e instanceof Error ? e.message : (typeof e === "object" && e !== null && "message" in e ? String((e as { message: unknown }).message) : String(e));
+      out.push({ item, result: null, error: message });
     }
     opts.onItemDone?.();
     if (i < items.length - 1) {

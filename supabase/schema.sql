@@ -583,7 +583,9 @@ cross join (values
   ('Confederação Brasileira de Futebol', 'CBF', 'nacional'),
   ('Federação Paulista de Futebol', 'FPF', 'estadual'),
   ('Federação de Futebol do Rio de Janeiro', 'FERJ', 'estadual'),
-  ('Federação Mineira de Futebol', 'FMF', 'estadual')
+  ('Federação Mineira de Futebol', 'FMF', 'estadual'),
+  ('Federação Gaúcha de Futebol', 'FGF', 'estadual'),
+  ('Federação de Futebol do Estado do Espírito Santo', 'FES', 'estadual')
 ) as v(nome, sigla, tipo)
 where p.nome = 'Brasil'
 on conflict (pais_id, sigla) do nothing;
