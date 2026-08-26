@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { AtletaDossie } from "@/components/atletas/dossie/AtletaDossie";
 import { AtletaDossieLoadError } from "@/components/atletas/AtletasExplorer";
 import { createClient } from "@/lib/supabase/server";
-import { loadAtletaDossie, loadConquistas, loadAgenteContact, loadEvolucaoReal, loadCategoriaAcimaMatches, loadCardEvents, loadMatchHistory } from "@/lib/services/atletas";
+import { loadAtletaDossie, loadConquistas, loadAgenteContact, loadEvolucaoReal, loadCategoriaAcimaMatches, loadCardEvents, loadMatchHistory, loadClubHistory } from "@/lib/services/atletas";
 
 export default async function DossiePage({ params }: { params: Promise<{ fbId: string }> }) {
   const { fbId } = await params;
@@ -18,13 +18,14 @@ export default async function DossiePage({ params }: { params: Promise<{ fbId: s
   }
   if (!atleta) notFound();
 
-  const [conquistas, evolucao, agent, categoriaAcimaMatches, cardEvents, matchHistory] = await Promise.all([
+  const [conquistas, evolucao, agent, categoriaAcimaMatches, cardEvents, matchHistory, clubHistory] = await Promise.all([
     loadConquistas(supabase, fbIdNum),
     loadEvolucaoReal(supabase, fbIdNum),
     atleta.agentId ? loadAgenteContact(supabase, atleta.agentId) : Promise.resolve(null),
     loadCategoriaAcimaMatches(supabase, fbIdNum, atleta.currentCategory),
     loadCardEvents(supabase, fbIdNum),
     loadMatchHistory(supabase, fbIdNum),
+    loadClubHistory(supabase, fbIdNum, atleta.currentClubId),
   ]);
   return (
     <AtletaDossie
@@ -35,6 +36,7 @@ export default async function DossiePage({ params }: { params: Promise<{ fbId: s
       categoriaAcimaMatches={categoriaAcimaMatches}
       cardEvents={cardEvents}
       matchHistory={matchHistory}
+      clubHistory={clubHistory}
     />
   );
 }

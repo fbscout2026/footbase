@@ -15,7 +15,7 @@ import { ClubHistory } from "@/components/atletas/dossie/ClubHistory";
 import { AgentContact } from "@/components/atletas/dossie/AgentContact";
 import { formatDate, formatMonthYear, formatAthleteCode } from "@/lib/format";
 import type {
-  AtletaRecord, ConquistaRecord, AgenteContactRecord, EvolucaoPoint, CategoriaAcimaMatch, CardEvent, MatchHistoryEntry,
+  AtletaRecord, ConquistaRecord, AgenteContactRecord, EvolucaoPoint, CategoriaAcimaMatch, CardEvent, MatchHistoryEntry, ClubHistoryEntry,
 } from "@/lib/services/atletas";
 import { FavoriteButton } from "@/components/favorites/FavoriteButton";
 import { AthleteClaimPanel } from "@/components/atletas/dossie/AthleteClaimPanel";
@@ -25,10 +25,10 @@ const CONTRACT_TONE = {
 } as const;
 
 export function AtletaDossie({
-  atleta: a, conquistas, agent, evolucao, categoriaAcimaMatches, cardEvents, matchHistory,
+  atleta: a, conquistas, agent, evolucao, categoriaAcimaMatches, cardEvents, matchHistory, clubHistory,
 }: {
   atleta: AtletaRecord; conquistas: ConquistaRecord[]; agent: AgenteContactRecord | null; evolucao: EvolucaoPoint[];
-  categoriaAcimaMatches: CategoriaAcimaMatch[]; cardEvents: CardEvent[]; matchHistory: MatchHistoryEntry[];
+  categoriaAcimaMatches: CategoriaAcimaMatch[]; cardEvents: CardEvent[]; matchHistory: MatchHistoryEntry[]; clubHistory: ClubHistoryEntry[];
 }) {
   const { t } = useT();
 
@@ -256,7 +256,7 @@ export function AtletaDossie({
           </Panel>
 
           <Panel title={t("dossie.history.title")}>
-            <ClubHistory atleta={a} />
+            <ClubHistory history={clubHistory} />
           </Panel>
         </div>
       </div>

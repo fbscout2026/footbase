@@ -659,6 +659,68 @@ export async function loadMatchHistory(client: SupabaseClient, fbId: number): Pr
     .sort((a, b) => b.matchDate.localeCompare(a.matchDate));
 }
 
+export interface ClubHistoryEntry {
+  clubId: string;
+  clubName: string;
+  crestUrl: string | null;
+  from: number | null; // year of the earliest real appearance found for this club
+  to: number | null; // year of the latest real appearance, or null when it's the athlete's current club
+}
+
+/**
+ * Real club history derived from `atuacoes_sumula.club_id` (which of the
+ * match's two clubs each appearance was for) grouped per club, with the
+ * earliest/latest match year found for each — replaces the old
+ * `lib/atleta-extra.ts` mock (a hardcoded table for a handful of pre-scraping
+ * fbIds, falling back to a single fabricated "current club since birth-year+14"
+ * entry for every real athlete). Confirmed live (Session 57): a real athlete
+ * transferred between clubs (Cuiabá → Palmeiras) showed only "Palmeiras -
+ * atual" in the UI because the mock never looked at real appearance data at
+ * all. The athlete's OWN current club (`current_club_id`) always gets `to:
+ * null` (still active), even if their most recent appearance on record
+ * predates today — every other club gets the real year of its last known
+ * appearance, never a guess.
+ */
+export async function loadClubHistory(client: SupabaseClient, fbId: number, currentClubId: string | null): Promise<ClubHistoryEntry[]> {
+  const { data, error } = await client.from("atuacoes_sumula").select("club_id,partidas_sumula!inner(match_date)").eq("fb_id_atleta", fbId);
+  if (error) throw error;
+
+  const rows = ((data as any[]) ?? []).filter((r) => r.club_id);
+  const range = new Map<string, { from: string; to: string }>();
+  for (const r of rows) {
+    const date = r.partidas_sumula.match_date as string;
+    const existing = range.get(r.club_id);
+    if (!existing) range.set(r.club_id, { from: date, to: date });
+    else {
+      if (date < existing.from) existing.from = date;
+      if (date > existing.to) existing.to = date;
+    }
+  }
+  if (range.size === 0) return [];
+
+  const { data: clubs, error: clubsError } = await client.from("clubes").select("id,name,webp_crest_url").in("id", [...range.keys()]);
+  if (clubsError) throw clubsError;
+  const clubById = new Map((clubs ?? []).map((c) => [c.id as string, c]));
+
+  return [...range.entries()]
+    .map(([clubId, { from, to }]) => {
+      const club = clubById.get(clubId);
+      return {
+        clubId,
+        clubName: (club?.name as string) ?? clubId,
+        crestUrl: (club?.webp_crest_url as string | null) ?? null,
+        from: Number(from.slice(0, 4)),
+        to: clubId === currentClubId ? null : Number(to.slice(0, 4)),
+      };
+    })
+    .sort((a, b) => {
+      // Current club (to === null) always first; the rest most-recent-first.
+      if (a.to === null && b.to !== null) return -1;
+      if (b.to === null && a.to !== null) return 1;
+      return (b.to ?? b.from ?? 0) - (a.to ?? a.from ?? 0);
+    });
+}
+
 export interface ConquistaRecord {
   id: string;
   tipo: "titulo" | "premio";

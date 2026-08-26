@@ -1,5 +1,3 @@
-import type { AtletaRecord } from "@/lib/services/atletas";
-
 // ----------------------------------------------------------------------------
 // Performance index — ONE honest number (0-100) derived from an athlete's real
 // aggregate stats. Used by the comparison matrix and the tactical board's
@@ -45,52 +43,3 @@ export function computePerformanceIndex(a: PerformanceInput): number {
   return Math.round(Math.max(30, Math.min(90, base)));
 }
 
-// ----------------------------------------------------------------------------
-// Club history — explicit entries for a few athletes; the rest fall back to a
-// single "current club" entry derived from início de carreira.
-// ----------------------------------------------------------------------------
-export interface ClubHistoryEntry {
-  clubId?: string;
-  clubName: string;
-  crestUrl?: string | null;
-  from: number | null; // null = unknown (real scraped athletes have no início de carreira yet)
-  to: number | null; // null = current
-}
-
-const HISTORY: Record<number, ClubHistoryEntry[]> = {
-  2210662: [
-    { clubName: "Base FC", from: 2020, to: 2023 },
-    { clubId: "club-pal", clubName: "Palmeiras", from: 2023, to: null },
-  ],
-  2210995: [
-    { clubName: "Litoral EC", from: 2018, to: 2022 },
-    { clubId: "club-san", clubName: "Santos", from: 2022, to: null },
-  ],
-  2210045: [
-    { clubName: "Zona Sul FC", from: 2019, to: 2022 },
-    { clubId: "club-fla", clubName: "Flamengo", from: 2022, to: null },
-  ],
-  2211006: [
-    { clubName: "Ibéria FC", from: 2017, to: 2021 },
-    { clubId: "club-vas", clubName: "Vasco da Gama", from: 2021, to: null },
-  ],
-  2209888: [
-    { clubName: "Interior EC", from: 2018, to: 2022 },
-    { clubId: "club-pal", clubName: "Palmeiras", from: 2022, to: null },
-  ],
-};
-
-export function getHistoricoClubes(a: AtletaRecord): ClubHistoryEntry[] {
-  const explicit = HISTORY[a.fbId];
-  if (explicit) return explicit;
-  if (!a.currentClubName) return []; // no known club at all — nothing to show, not a guess
-  return [
-    {
-      clubId: a.currentClubId ?? undefined,
-      clubName: a.currentClubName,
-      crestUrl: a.currentClubCrestUrl,
-      from: a.inicioCarreira ?? (a.anoNascimento ? a.anoNascimento + 14 : null),
-      to: null,
-    },
-  ];
-}

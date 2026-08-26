@@ -2,12 +2,10 @@
 
 import { useT } from "@/lib/i18n/I18nProvider";
 import { ClubeCrest } from "@/components/app/ClubeCrest";
-import { getHistoricoClubes } from "@/lib/atleta-extra";
-import type { AtletaRecord } from "@/lib/services/atletas";
+import type { ClubHistoryEntry } from "@/lib/services/atletas";
 
-export function ClubHistory({ atleta }: { atleta: AtletaRecord }) {
+export function ClubHistory({ history }: { history: ClubHistoryEntry[] }) {
   const { t } = useT();
-  const history = getHistoricoClubes(atleta);
 
   if (history.length === 0) {
     return <p className="text-sm text-muted">{t("dossie.history.empty")}</p>;
@@ -15,8 +13,8 @@ export function ClubHistory({ atleta }: { atleta: AtletaRecord }) {
 
   return (
     <ul className="space-y-2">
-      {history.map((h, i) => (
-        <li key={i} className="flex items-center gap-3">
+      {history.map((h) => (
+        <li key={h.clubId} className="flex items-center gap-3">
           <ClubeCrest src={h.crestUrl ?? null} name={h.clubName} size={28} />
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-medium uppercase">{h.clubName}</p>
