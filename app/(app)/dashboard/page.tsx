@@ -37,16 +37,16 @@ export default async function DashboardPage() {
     <div className="space-y-4">
       <HeroBanner stats={hero} notifications={notifications} />
 
-      {/* Session 57: Torneios+Artilheiros+Agentes Livres stacked in the left rail
-          (fills vertical space instead of leaving the right rail short); every list
-          card now requests up to 20 rows and scrolls internally (WidgetCard's
-          `scrollable` prop) instead of hard-cutting at 6. */}
+      {/* Session 57: Torneios+Artilheiros stacked in the left rail, Alerta de
+          Inatividade+Agentes Livres in the right rail (fills vertical space instead
+          of leaving either rail short); every list card now requests up to 20 rows
+          and scrolls internally (WidgetCard's `scrollable` prop) instead of
+          hard-cutting at 6. */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
-        {/* Left rail — competitions + scoring/market feeds */}
+        {/* Left rail — competitions + scoring feed */}
         <aside className="space-y-4 lg:col-span-3">
           <TorneiosDestaque torneios={torneios} />
           <Artilheiros athletes={artilheiros} />
-          <AgentesLivres athletes={livres} />
         </aside>
 
         {/* Center — main analysis */}
@@ -56,9 +56,10 @@ export default async function DashboardPage() {
           <GemasCategoriaAcima athletes={gemas} />
         </div>
 
-        {/* Right rail — activity alerts */}
+        {/* Right rail — activity alerts + market feed */}
         <aside className="space-y-4 lg:col-span-3">
           <AlertaInatividade athletes={inativos} />
+          <AgentesLivres athletes={livres} />
         </aside>
       </div>
     </div>
