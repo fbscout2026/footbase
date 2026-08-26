@@ -1,11 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Trophy, Search } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { Select } from "@/components/ui/Select";
 import { Button } from "@/components/ui/Button";
+import { Pagination } from "@/components/ui/Pagination";
 import { useT } from "@/lib/i18n/I18nProvider";
 import {
   initialTorneioFilters, paisesForConfederacao, federacoesForPais, categoriasForFederacao, filterTorneios,
@@ -13,16 +14,30 @@ import {
 } from "@/lib/torneios-filter-rules";
 import type { TorneioExplorerData } from "@/lib/services/torneios";
 
+// Cap DOM rows to keep the table snappy — same fix as ClubDirectory.tsx.
+const ROWS_PER_PAGE = 20;
+
 export function TorneioDirectory({ data }: { data: TorneioExplorerData }) {
   const { t } = useT();
   const [filters, setFilters] = useState<TorneioFilterState>(initialTorneioFilters);
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [page, setPage] = useState(1);
 
   const paisOptions = useMemo(() => paisesForConfederacao(data.paises, filters.confederacaoId), [data.paises, filters.confederacaoId]);
   const federacaoOptions = useMemo(() => federacoesForPais(data.federacoes, filters.paisId), [data.federacoes, filters.paisId]);
   const selectedFederacao = useMemo(() => data.federacoes.find((f) => f.id === filters.federacaoId), [data.federacoes, filters.federacaoId]);
   const categoriaOptions = useMemo(() => categoriasForFederacao(data.torneios, selectedFederacao), [data.torneios, selectedFederacao]);
   const results = useMemo(() => filterTorneios(data.torneios, filters), [data.torneios, filters]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [results]);
+
+  const pageCount = Math.max(1, Math.ceil(results.length / ROWS_PER_PAGE));
+  const paged = useMemo(() => {
+    const start = (page - 1) * ROWS_PER_PAGE;
+    return results.slice(start, start + ROWS_PER_PAGE);
+  }, [results, page]);
 
   const setConfederacao = (confederacaoId: string) => setFilters({ ...initialTorneioFilters, query: filters.query, confederacaoId });
   const setPais = (paisId: string) => setFilters({ ...filters, paisId, federacaoId: "", categoria: "" });
@@ -83,28 +98,31 @@ export function TorneioDirectory({ data }: { data: TorneioExplorerData }) {
         {results.length === 0 ? (
           <p className="p-10 text-center text-sm text-muted">{t("torneios.empty")}</p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[640px] text-sm">
-              <thead>
-                <tr className="border-b border-border bg-background text-left text-xs uppercase tracking-wide text-muted">
-                  <th className="px-5 py-3">{t("torneios.col.name")}</th>
-                  <th className="px-4 py-3">{t("torneios.col.federation")}</th>
-                  <th className="px-4 py-3">{t("torneios.col.category")}</th>
-                  <th className="px-4 py-3">{t("torneios.col.year")}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {results.map((tr) => (
-                  <tr key={tr.id} className="border-b border-border/60 transition-colors hover:bg-surface-hover">
-                    <td className="px-5 py-4"><Link href={`/torneios/${tr.id}`} className="font-bold hover:text-brand">{tr.name}</Link></td>
-                    <td className="px-4 py-4 text-muted">{tr.federacaoSigla ?? tr.federationText}</td>
-                    <td className="px-4 py-4"><Badge tone="neutral">{tr.category ?? "—"}</Badge></td>
-                    <td className="metric-value px-4 py-4">{tr.year}</td>
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[640px] text-sm">
+                <thead>
+                  <tr className="border-b border-border bg-background text-left text-xs uppercase tracking-wide text-muted">
+                    <th className="px-5 py-3">{t("torneios.col.name")}</th>
+                    <th className="px-4 py-3">{t("torneios.col.federation")}</th>
+                    <th className="px-4 py-3">{t("torneios.col.category")}</th>
+                    <th className="px-4 py-3">{t("torneios.col.year")}</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {paged.map((tr) => (
+                    <tr key={tr.id} className="border-b border-border/60 transition-colors hover:bg-surface-hover">
+                      <td className="px-5 py-4"><Link href={`/torneios/${tr.id}`} className="font-bold hover:text-brand">{tr.name}</Link></td>
+                      <td className="px-4 py-4 text-muted">{tr.federacaoSigla ?? tr.federationText}</td>
+                      <td className="px-4 py-4"><Badge tone="neutral">{tr.category ?? "—"}</Badge></td>
+                      <td className="metric-value px-4 py-4">{tr.year}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <Pagination page={page} pageCount={pageCount} onChange={setPage} />
+          </>
         )}
       </section>
     </div>
