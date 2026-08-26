@@ -20,3 +20,10 @@ export function formatDate(iso: string): string {
 export function formatAthleteCode(bid: number): string {
   return `FB-${bid}`;
 }
+
+// Session 57: same idea as formatAthleteCode, for clubes.fb_id (reserved range
+// >= 500000000, never collides with an athlete's fb_id — see
+// lib/services/scraper/resolve-club-identity.ts's module doc).
+export function formatClubCode(fbId: number): string {
+  return `FB-${fbId}`;
+}

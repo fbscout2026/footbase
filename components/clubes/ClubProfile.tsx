@@ -12,8 +12,8 @@ import { useSession } from "@/lib/auth/SessionProvider";
 import { useT } from "@/lib/i18n/I18nProvider";
 import { createClient } from "@/lib/supabase/client";
 import { normalizeClaimDocumentUrl, normalizeClaimMessage, type ClubClaimViewState } from "@/lib/club-claim-rules";
-import { createClubClaim, type ClubProfileData } from "@/lib/services/clubs";
-import { formatAthleteCode } from "@/lib/format";
+import { createClubClaim, type ClubProfileData, type ClubSquadCategoryGroup } from "@/lib/services/clubs";
+import { formatAthleteCode, formatClubCode } from "@/lib/format";
 
 export function ClubProfile({ initialData }: { initialData: ClubProfileData }) {
   const { t } = useT();
@@ -25,7 +25,7 @@ export function ClubProfile({ initialData }: { initialData: ClubProfileData }) {
     <div className="space-y-5">
       <section className="matchday-surface p-5 sm:p-7">
         <div className="flex flex-wrap items-start justify-between gap-5">
-          <div className="flex items-center gap-4"><ClubeCrest src={club.crestUrl} name={club.name} size={72} /><div><div className="mb-2 flex items-center gap-2 text-brand"><Building2 size={17} /><span className="text-xs font-extrabold uppercase tracking-widest">{t("clubs.profile")}</span></div><h1 className="matchday-heading text-3xl sm:text-4xl uppercase">{club.name}</h1><p className="mt-1 text-sm text-muted">{[club.state, club.federation].filter(Boolean).join(" · ") || t("common.notInformed")}</p></div></div>
+          <div className="flex items-center gap-4"><ClubeCrest src={club.crestUrl} name={club.name} size={72} /><div><div className="mb-2 flex items-center gap-2 text-brand"><Building2 size={17} /><span className="text-xs font-extrabold uppercase tracking-widest">{t("clubs.profile")}</span></div><h1 className="matchday-heading text-3xl sm:text-4xl uppercase">{club.name}</h1><p className="mt-1 text-sm text-muted">{[club.state, club.federation].filter(Boolean).join(" · ") || t("common.notInformed")} <span className="metric-value">· {formatClubCode(club.fbId)}</span></p></div></div>
           <div className="flex items-center gap-3">
             <ClubFavoriteButton clubId={club.id} />
             <Badge tone={club.claimStatus === "claimed" ? "brand" : club.claimStatus === "pending" ? "warning" : "neutral"}>{t(`clubs.status.${club.claimStatus}`)}</Badge>
@@ -35,7 +35,7 @@ export function ClubProfile({ initialData }: { initialData: ClubProfileData }) {
       </section>
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(340px,0.48fr)]">
-        <section className="matchday-surface overflow-hidden"><div className="flex items-center gap-2 border-b border-border p-5"><Users size={18} className="text-brand" /><h2 className="matchday-heading text-xl">{t("clubs.squad")}</h2></div>{data.squad.length === 0 ? <p className="p-8 text-center text-sm text-muted">{t("clubs.squadEmpty")}</p> : <div className="overflow-x-auto"><table className="w-full min-w-[620px] text-sm"><thead><tr className="border-b border-border bg-background text-left text-xs uppercase tracking-wide text-muted"><th className="px-5 py-3">{t("clubs.athlete")}</th><th className="px-4 py-3">ID</th><th className="px-4 py-3">{t("clubs.position")}</th><th className="px-4 py-3">{t("clubs.category")}</th></tr></thead><tbody>{data.squad.map((athlete) => <tr key={athlete.fbId} className="border-b border-border/60"><td className="px-5 py-4"><Link href={`/atletas/${athlete.fbId}`} className="font-bold hover:text-brand">{athlete.name}</Link>{athlete.nickname && <p className="text-xs text-muted">{athlete.nickname}</p>}</td><td className="metric-value px-4 py-4">{formatAthleteCode(athlete.fbId)}</td><td className="px-4 py-4">{athlete.mainPosition ?? "—"}</td><td className="px-4 py-4">{athlete.category ?? "—"}</td></tr>)}</tbody></table></div>}</section>
+        <section className="space-y-5">{data.squad.length === 0 ? <div className="matchday-surface p-8 text-center text-sm text-muted">{t("clubs.squadEmpty")}</div> : data.squad.map((group) => <SquadCategoryCard key={group.category || "uncategorized"} group={group} />)}</section>
         <div className="space-y-5"><InfoPanel title={t("clubs.categories")} values={club.activeCategories} empty={t("clubs.noCategories")} /><InfoPanel title={t("clubs.tournaments")} values={club.tournaments} empty={t("clubs.noTournaments")} /><ClaimPanel state={data.claimViewState} ownRequest={data.ownRequest} clubId={club.id} onSubmitted={(request) => setData({ ...data, ownRequest: request, claimViewState: "own-pending", club: { ...club, claimStatus: "pending" } })} userId={session.userId} /></div>
       </div>
     </div>
@@ -43,6 +43,25 @@ export function ClubProfile({ initialData }: { initialData: ClubProfileData }) {
 }
 
 function Metric({ value, label }: { value: number; label: string }) { return <div className="border border-border bg-background p-4"><p className="metric-value text-3xl font-black">{value}</p><p className="mt-1 text-xs uppercase tracking-wide text-muted">{label}</p></div>; }
+
+function SquadCategoryCard({ group }: { group: ClubSquadCategoryGroup }) {
+  const { t } = useT();
+  const title = group.category || t("clubs.squadUncategorized");
+  return (
+    <section className="matchday-surface overflow-hidden">
+      <div className="flex items-center justify-between gap-2 border-b border-border p-5">
+        <div className="flex items-center gap-2"><Users size={18} className="text-brand" /><h2 className="matchday-heading text-xl">{t("clubs.squad")} — {title}</h2></div>
+        <span className="metric-value text-sm">{group.athletes.length}</span>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[480px] text-sm">
+          <thead><tr className="border-b border-border bg-background text-left text-xs uppercase tracking-wide text-muted"><th className="px-5 py-3">{t("clubs.athlete")}</th><th className="px-4 py-3">ID</th><th className="px-4 py-3">{t("clubs.position")}</th></tr></thead>
+          <tbody>{group.athletes.map((athlete) => <tr key={athlete.fbId} className="border-b border-border/60"><td className="px-5 py-4"><Link href={`/atletas/${athlete.fbId}`} className="font-bold hover:text-brand">{athlete.name}</Link>{athlete.nickname && <p className="text-xs text-muted">{athlete.nickname}</p>}</td><td className="metric-value px-4 py-4">{formatAthleteCode(athlete.fbId)}</td><td className="px-4 py-4">{athlete.mainPosition ?? "—"}</td></tr>)}</tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
 function InfoPanel({ title, values, empty }: { title: string; values: string[]; empty: string }) { return <section className="matchday-surface p-5"><h2 className="matchday-heading text-lg">{title}</h2>{values.length ? <div className="mt-3 flex flex-wrap gap-2">{values.map((value) => <Badge key={value}>{value}</Badge>)}</div> : <p className="mt-2 text-sm text-muted">{empty}</p>}</section>; }
 
 function ClaimPanel({ state, ownRequest, clubId, userId, onSubmitted }: { state: ClubClaimViewState; ownRequest: ClubProfileData["ownRequest"]; clubId: string; userId: string; onSubmitted: (request: NonNullable<ClubProfileData["ownRequest"]>) => void }) {

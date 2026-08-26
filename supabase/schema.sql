@@ -259,8 +259,11 @@ grant execute on function solicitar_revisao_conta() to authenticated;
 -- ----------------------------------------------------------------------------
 -- clubes (seed profiles — born only via ingestion, claimed via requests)
 -- ----------------------------------------------------------------------------
+create sequence if not exists clube_fb_id_seq start with 500000000;
+
 create table if not exists clubes (
   id uuid primary key default gen_random_uuid(),
+  fb_id bigint not null default nextval('clube_fb_id_seq') unique check (fb_id >= 500000000),
   name text not null,
   source_key text,                         -- '<source>:<external_id>' for scraper upserts
   state char(2),
@@ -273,6 +276,7 @@ create table if not exists clubes (
 
 create index if not exists idx_clubes_state on clubes (state);
 create index if not exists idx_clubes_claim on clubes (claim_status);
+create index if not exists idx_clubes_fb_id on clubes (fb_id);
 -- Plain UNIQUE constraint (not a partial index) — required for `ingest.ts`'s
 -- `upsert(..., { onConflict: "source_key" })` to work at all: Postgres can't target a
 -- PARTIAL unique index via a simple ON CONFLICT clause without repeating its WHERE
@@ -679,6 +683,23 @@ create table if not exists atleta_fontes (
   created_at timestamptz not null default now(),
   primary key (fonte, id_externo)
 );
+
+-- ----------------------------------------------------------------------------
+-- clube_fontes (Session 57 — multi-source identity map for clubs, mirrors
+-- atleta_fontes; consulted by resolve-club-identity.ts so the same real club
+-- across federations/sources resolves to one clube.id instead of duplicating)
+-- ----------------------------------------------------------------------------
+create table if not exists clube_fontes (
+  club_id uuid not null references clubes (id) on delete cascade,
+  fonte text not null,                           -- 'cbf', 'fes', 'fgf', ...
+  id_externo text not null,                      -- club id/slug within that source
+  confidence text not null default 'exact' check (confidence in ('exact', 'matched', 'manual')),
+  resolved_by uuid references profiles (id) on delete set null,
+  created_at timestamptz not null default now(),
+  primary key (fonte, id_externo)
+);
+
+create index if not exists idx_clube_fontes_club_id on clube_fontes (club_id);
 
 create index if not exists idx_atleta_fontes_fb_id on atleta_fontes (fb_id);
 
@@ -1141,6 +1162,7 @@ alter table torneios enable row level security;
 alter table scraping_logs enable row level security;
 alter table scraping_jobs enable row level security;
 alter table atleta_fontes enable row level security;
+alter table clube_fontes enable row level security;
 alter table partidas_sumula enable row level security;
 alter table atuacoes_sumula enable row level security;
 alter table atuacao_cartoes enable row level security;
@@ -1266,6 +1288,11 @@ create policy scraping_jobs_write_admin on scraping_jobs
 create policy atleta_fontes_select_admin on atleta_fontes
   for select using (private.is_admin());
 create policy atleta_fontes_write_admin on atleta_fontes
+  for all using (private.is_admin()) with check (private.is_admin());
+
+create policy clube_fontes_select_admin on clube_fontes
+  for select using (private.is_admin());
+create policy clube_fontes_write_admin on clube_fontes
   for all using (private.is_admin()) with check (private.is_admin());
 
 -- partidas_sumula / atuacoes_sumula: read for approved; ingestion-only writes.
@@ -1663,7 +1690,8 @@ select
   c.claim_status,
   coalesce(sq.total_atletas, 0) as total_atletas,
   coalesce(mp.categorias_ativas, '{}'::text[]) as categorias_ativas,
-  coalesce(mp.torneios_em_disputa, '{}'::text[]) as torneios_em_disputa
+  coalesce(mp.torneios_em_disputa, '{}'::text[]) as torneios_em_disputa,
+  c.fb_id
 from clubes c
 left join lateral (
   select count(*)::int as total_atletas

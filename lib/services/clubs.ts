@@ -8,6 +8,7 @@ import {
 
 export interface ClubSummaryRecord {
   id: string;
+  fbId: number;
   name: string;
   state: string | null;
   federation: string | null;
@@ -35,15 +36,21 @@ export interface ClubClaimRequestRecord {
   createdAt: string;
 }
 
+export interface ClubSquadCategoryGroup {
+  category: string; // real category label, or "" for the uncategorized bucket
+  athletes: ClubSquadMemberRecord[];
+}
+
 export interface ClubProfileData {
   club: ClubSummaryRecord;
-  squad: ClubSquadMemberRecord[];
+  squad: ClubSquadCategoryGroup[];
   claimViewState: ClubClaimViewState;
   ownRequest: ClubClaimRequestRecord | null;
 }
 
 type ClubViewRow = {
   id: string;
+  fb_id: number;
   name: string;
   state: string | null;
   federacao: string | null;
@@ -55,11 +62,12 @@ type ClubViewRow = {
   torneios_em_disputa: string[] | null;
 };
 
-const CLUB_COLUMNS = "id,name,state,federacao,webp_crest_url,reivindicado_por,claim_status,total_atletas,categorias_ativas,torneios_em_disputa";
+const CLUB_COLUMNS = "id,fb_id,name,state,federacao,webp_crest_url,reivindicado_por,claim_status,total_atletas,categorias_ativas,torneios_em_disputa";
 
 function mapClub(row: ClubViewRow): ClubSummaryRecord {
   return {
     id: row.id,
+    fbId: Number(row.fb_id),
     name: row.name.toUpperCase(),
     state: row.state,
     federation: row.federacao,
@@ -69,6 +77,26 @@ function mapClub(row: ClubViewRow): ClubSummaryRecord {
     activeCategories: row.categorias_ativas ?? [],
     tournaments: row.torneios_em_disputa ?? [],
   };
+}
+
+// Groups by category (already sorted alphabetically by the `atletas` query's own
+// `.order("name")`, so within a group the order is preserved as-is), category
+// groups ordered by `categoria_ordem.rank` (SUB-11 → SUB-20, never plain
+// alphabetical — "SUB-11" would sort after "SUB-13" alphabetically). Athletes
+// with no known category land in one final "" bucket.
+function groupSquadByCategory(athletes: ClubSquadMemberRecord[], categoryRank: Map<string, number>): ClubSquadCategoryGroup[] {
+  const byCategory = new Map<string, ClubSquadMemberRecord[]>();
+  for (const athlete of athletes) {
+    const key = athlete.category ?? "";
+    (byCategory.get(key) ?? byCategory.set(key, []).get(key)!).push(athlete);
+  }
+  return [...byCategory.entries()]
+    .sort(([a], [b]) => {
+      if (a === "") return 1;
+      if (b === "") return -1;
+      return (categoryRank.get(a) ?? Infinity) - (categoryRank.get(b) ?? Infinity) || a.localeCompare(b);
+    })
+    .map(([category, group]) => ({ category, athletes: group }));
 }
 
 function mapClaim(row: {
@@ -99,10 +127,11 @@ export async function loadClubProfile(
   if (clubError) throw clubError;
   const row = clubData as ClubViewRow;
 
-  const [squadResult, requestResult, pendingResult, claimedResult] = await Promise.all([
+  const [squadResult, categoryOrderResult, requestResult, pendingResult, claimedResult] = await Promise.all([
     client.from("atletas")
       .select("fb_id,name,apelido,main_position,current_category,contract_end_date")
       .eq("current_club_id", clubId).order("name"),
+    client.from("categoria_ordem").select("categoria").order("rank"),
     client.from("solicitacoes_reivindicacao")
       .select("id,documento_url,mensagem,status,created_at")
       .eq("tipo", "clube").eq("clube_id", clubId).eq("requested_by", session.userId)
@@ -119,6 +148,7 @@ export async function loadClubProfile(
   ]);
 
   if (squadResult.error) throw squadResult.error;
+  if (categoryOrderResult.error) throw categoryOrderResult.error;
   if (requestResult.error) throw requestResult.error;
   if (pendingResult.error) throw pendingResult.error;
   if (claimedResult.error) throw claimedResult.error;
@@ -130,7 +160,7 @@ export async function loadClubProfile(
       })
     : null;
 
-  const squad = (squadResult.data ?? []).map((athlete) => ({
+  const squadFlat = (squadResult.data ?? []).map((athlete) => ({
     fbId: Number(athlete.fb_id),
     name: athlete.name,
     nickname: athlete.apelido,
@@ -138,6 +168,9 @@ export async function loadClubProfile(
     category: athlete.current_category,
     contractEndDate: athlete.contract_end_date,
   })) as ClubSquadMemberRecord[];
+
+  const categoryRank = new Map((categoryOrderResult.data ?? []).map((c, i) => [c.categoria as string, i]));
+  const squad = groupSquadByCategory(squadFlat, categoryRank);
 
   return {
     club: mapClub(row),

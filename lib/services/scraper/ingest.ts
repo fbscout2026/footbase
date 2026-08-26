@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { mkdirSync, writeFileSync } from "node:fs";
-import type { IngestReport, ParsedMatch } from "./types.ts";
+import { createHash } from "node:crypto";
+import type { IngestReport, ParsedMatch, ParsedClub } from "./types.ts";
 import { validateParsedMatch } from "./validate.ts";
 import { reconcileParsedMatch } from "./reconciliation.ts";
 import { assertLiveIngestionAllowed } from "./ingestion-gate.ts";
@@ -8,12 +9,102 @@ import { fetchCbfCrestWebp } from "./cbf-crest.ts";
 import { fetchWikipediaCrestWebp } from "./wikipedia-crest.ts";
 import { fetchCrestWebpFromUrl } from "./crest-fetch.ts";
 import { CURATED_WIKIPEDIA_CREST_BY_CBF_SOURCE_KEY } from "./curated-crest-sources.ts";
+import { resolveClubIdentity, type ExistingClubForIdentity } from "./resolve-club-identity.ts";
+import { localCrestHash, KNOWN_PLACEHOLDER_CREST_HASHES } from "./local-crest-hash.ts";
 
 // Only clubs seeded with a REAL numeric CBF club id (`cbf:{id}` — wired once the
 // discovery layer supplies `idClubeMandante`/`idClubeVisitante`, Session 52) have a
 // known escudo URL derivable by formula; provisional/other-source clubs are
 // skipped, not guessed at.
 const CBF_CLUB_SOURCE_KEY_RE = /^cbf:(\d+)$/;
+
+/**
+ * Session 57 — resolves a `ParsedClub` to a permanent `clubes.id` via the
+ * `clube_fontes` crosswalk (mirrors `resolveSourceAthleteIdentities` for
+ * athletes), instead of upserting by `source_key` alone. Every source funnels
+ * through this single function (called from `ingestMatch` below), so every
+ * adapter gets the crosswalk for free — no adapter-level changes needed.
+ *
+ * Fast path (the overwhelming majority of calls, once a source has run once):
+ * `clube_fontes` already has this exact (fonte, id_externo) — a single indexed
+ * lookup, no network, no full table scan.
+ *
+ * Slow path (only for a source/club pair never seen before): loads every
+ * existing club's crest hash (local disk reads only) and fetches+hashes the
+ * incoming candidate's own crest (the only network call in this path) before
+ * calling the pure `resolveClubIdentity`. Crest-hash matching only ever catches
+ * a byte-identical file — reliable for a name-spelling variant WITHIN one
+ * source (the same hosted image reused, e.g. FGF's "Progresso Futebol Clube"
+ * vs "Progresso Fc"), but two different federations almost always host their
+ * OWN distinct image of the same real-world badge, so it will rarely
+ * auto-confirm a genuine cross-federation duplicate — that case still needs
+ * the periodic `scan-club-duplicates.ts` + manual `merge-clube.ts` pass
+ * (unchanged), it just now feeds a permanent crosswalk once confirmed instead
+ * of leaving no trace at all. Never blocks ingestion: any crest-fetch failure
+ * here just means `crestHash: null`, which can only ever fall through to
+ * "ambiguous"/"new" — never a wrong merge.
+ */
+async function resolveClubForIngestion(admin: SupabaseClient, c: ParsedClub): Promise<{ clubId: string; currentCrestUrl: string | null }> {
+  const sepIdx = c.sourceKey.indexOf(":");
+  const fonte = sepIdx > 0 ? c.sourceKey.slice(0, sepIdx) : c.sourceKey;
+  const externalId = sepIdx > 0 ? c.sourceKey.slice(sepIdx + 1) : c.sourceKey;
+
+  let clubId: string;
+  let confidence: "exact" | "matched" = "exact";
+
+  const mappingRes = await admin.from("clube_fontes").select("club_id").eq("fonte", fonte).eq("id_externo", externalId).maybeSingle();
+  if (mappingRes.error) throw mappingRes.error;
+
+  if (mappingRes.data) {
+    clubId = String(mappingRes.data.club_id);
+  } else {
+    const PAGE = 1000;
+    const existing: ExistingClubForIdentity[] = [];
+    for (let offset = 0; ; offset += PAGE) {
+      const page = await admin.from("clubes").select("id,name,state,webp_crest_url").range(offset, offset + PAGE - 1);
+      if (page.error) throw page.error;
+      if (!page.data || page.data.length === 0) break;
+      for (const row of page.data) existing.push({ id: String(row.id), name: String(row.name), state: (row.state as string | null) ?? null, crestHash: localCrestHash(row.webp_crest_url as string | null) });
+      if (page.data.length < PAGE) break;
+    }
+
+    const incomingHash = c.crestUrl ? await hashRemoteCrestForIdentity(c.crestUrl) : null;
+    const resolution = resolveClubIdentity({ fonte, externalId, name: c.name, state: c.state ?? null, crestHash: incomingHash }, { existing, mappings: [] });
+
+    if (resolution.kind === "matched") {
+      clubId = resolution.clubId;
+      confidence = "matched";
+    } else {
+      const ins = await admin.from("clubes").insert({ name: c.name, source_key: c.sourceKey, state: c.state ?? null, federacao: c.federacao ?? null }).select("id").single();
+      if (ins.error) throw ins.error;
+      clubId = String(ins.data.id);
+    }
+
+    const mapIns = await admin.from("clube_fontes").insert({ club_id: clubId, fonte, id_externo: externalId, confidence });
+    if (mapIns.error) throw mapIns.error;
+  }
+
+  // Refresh institutional fields on the resolved row every time ("súmula/fonte
+  // vence" precedence, same as the old upsert-on-conflict behavior).
+  const upd = await admin.from("clubes").update({ name: c.name, state: c.state ?? null, federacao: c.federacao ?? null }).eq("id", clubId).select("webp_crest_url").single();
+  if (upd.error) throw upd.error;
+
+  return { clubId, currentCrestUrl: (upd.data.webp_crest_url as string | null) ?? null };
+}
+
+/** Downloads+compresses a candidate crest the exact same way `ensureClubCrest`
+ * would store it, then hashes the result — so a `resolveClubIdentity` crest-hash
+ * comparison is fair (compares like-for-like against `localCrestHash`'s read of
+ * an already-stored file, not raw-vs-compressed bytes). Never throws. */
+async function hashRemoteCrestForIdentity(url: string): Promise<string | null> {
+  const webp = await fetchCrestWebpFromUrl(url);
+  if (!webp) return null;
+  const hash = createHash("sha256").update(Buffer.from(webp)).digest("hex");
+  // Never let a source's own "no crest available" fallback image (e.g. FERJ's
+  // generic gray shield — see local-crest-hash.ts's doc) auto-confirm identity
+  // against another club that happens to share the same placeholder.
+  return KNOWN_PLACEHOLDER_CREST_HASHES.has(hash) ? null : hash;
+}
 
 /**
  * Baixa e grava o escudo oficial do clube pra um clube recém-upsertado, se ainda
@@ -146,15 +237,16 @@ export async function ingestMatch(admin: SupabaseClient, parsed: ParsedMatch, op
     }
     report.tournamentResolved = true;
 
-    // Seed/refresh clubs by source_key (institutional fields only).
+    // Seed/refresh clubs (institutional fields only) via the FB-ID crosswalk
+    // (Session 57) — resolves the permanent clubes.id through clube_fontes
+    // instead of upserting by source_key alone; see resolveClubForIngestion's doc.
     const clubIds: Record<"home" | "away", string> = { home: "", away: "" };
     for (const side of ["home", "away"] as const) {
       const c = parsed[side];
-      const up = await admin.from("clubes").upsert({ source_key: c.sourceKey, name: c.name, state: c.state ?? null, federacao: c.federacao ?? null }, { onConflict: "source_key" }).select("id,webp_crest_url").single();
-      if (up.error) throw up.error;
-      clubIds[side] = String(up.data.id);
+      const resolved = await resolveClubForIngestion(admin, c);
+      clubIds[side] = resolved.clubId;
       report.clubsUpserted++;
-      await ensureClubCrest(admin, clubIds[side], c.sourceKey, up.data.webp_crest_url, c.crestUrl, c.sourceKey.replace(":", "-"));
+      await ensureClubCrest(admin, clubIds[side], c.sourceKey, resolved.currentCrestUrl, c.crestUrl, c.sourceKey.replace(":", "-"));
     }
 
     // Seed missing athletes and refresh existing ones ("súmula/fonte vence"): the
