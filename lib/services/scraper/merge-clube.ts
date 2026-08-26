@@ -51,6 +51,30 @@ const REFERENCING_COLUMNS: { table: string; column: string }[] = [
   { table: "club_elenco_solicitacoes", column: "current_club_id_snapshot" },
   { table: "club_correction_requests", column: "club_id" },
   { table: "club_divergencias", column: "club_id" },
+  // Session 57 — clube_fontes (the FB-ID crosswalk) has `club_id ... on delete
+  // cascade`, so without repointing it FIRST here (same as every other
+  // referencing table), the loser's crosswalk row is silently deleted along
+  // with the loser club, not migrated. Confirmed live: this meant a merged
+  // club's OWN source (e.g. FERJ) would fail to auto-recognize it on the very
+  // next ingestion (crest hash rarely matches across sources — see
+  // resolve-club-identity.ts's doc) and recreate the exact duplicate the merge
+  // just fixed. `clube_fontes`'s PK is (fonte, id_externo), not id — repointing
+  // `club_id` never collides with that PK, so this is safe to treat exactly
+  // like every other referencing column.
+  { table: "clube_fontes", column: "club_id" },
+  // Same incident, same root cause, found in the same investigation:
+  // `atuacoes_sumula.club_id` ("which of the match's two clubs this appearance
+  // was for") is `on delete set null` — confirmed live it silently wiped 564
+  // real values across the 4 clubs merged just before this fix (restored
+  // afterward from the pre-merge backup). Never let this list go stale again —
+  // any FK into `clubes.id` that isn't listed here gets silently nulled/
+  // cascaded on the next merge instead of migrated.
+  { table: "atuacoes_sumula", column: "club_id" },
+  // `favoritos_clube.club_id` is `on delete cascade` — a user's favorite would
+  // vanish (not repoint) if the club they favorited turns out to be a merge
+  // loser. Zero rows affected so far (table was empty when this was found),
+  // but the same class of bug, fixed proactively rather than after the fact.
+  { table: "favoritos_clube", column: "club_id" },
 ];
 
 async function fetchClub(admin: SupabaseClient, id: string) {

@@ -24,6 +24,12 @@ const REFERENCING_COLUMNS: { table: string; column: string }[] = [
   { table: "solicitacoes_correcao", column: "fb_id_atleta" },
   { table: "club_elenco_solicitacoes", column: "fb_id_atleta" },
   { table: "representacao_transferencias", column: "fb_id_atleta" },
+  // Session 57 — found missing via the exact same audit that caught
+  // merge-clube.ts's clube_fontes/atuacoes_sumula.club_id gap: this table was
+  // never added here even though it has two real FKs into atletas.fb_id. Both
+  // columns needed (a duplicate-candidate row compares two DIFFERENT athletes).
+  { table: "atleta_duplicate_candidates", column: "fb_id_a" },
+  { table: "atleta_duplicate_candidates", column: "fb_id_b" },
 ];
 
 export interface AthleteSummary {
@@ -88,6 +94,19 @@ export async function mergeAtleta(admin: SupabaseClient, loserBid: number, winne
 
   if (!confirm) {
     return { outcome: "preview", loser, winner, rowCounts, totalRows };
+  }
+
+  // atleta_duplicate_candidates has `check (fb_id_a <> fb_id_b)` — if a stored
+  // candidate row already compares exactly this loser/winner pair, repointing
+  // either side alone would make both columns equal and violate that
+  // constraint. Delete such rows first: once the merge completes, "these two
+  // are the same athlete" is no longer a comparison, it's just true.
+  {
+    const { error } = await admin
+      .from("atleta_duplicate_candidates")
+      .delete()
+      .or(`and(fb_id_a.eq.${loserBid},fb_id_b.eq.${winnerBid}),and(fb_id_a.eq.${winnerBid},fb_id_b.eq.${loserBid})`);
+    if (error) return { outcome: "write-failed", loser, winner, error: `atleta_duplicate_candidates (par loser/winner): ${error.message}` };
   }
 
   for (const { table, column, count } of rowCounts) {

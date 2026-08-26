@@ -41,8 +41,8 @@
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { readFileSync, existsSync } from "node:fs";
-import { createHash } from "node:crypto";
 import { normalizeName } from "./resolve-athlete-identity.ts";
+import { localCrestHash } from "./local-crest-hash.ts";
 
 function loadEnvLocal(): void {
   if (!existsSync(".env.local")) return;
@@ -75,16 +75,10 @@ export interface ClubRow {
   claim_status: string;
 }
 
+// `localCrestHash` already filters out known placeholder images (returns null
+// for them) — see its own doc for the real FERJ incident that motivated this.
 function crestHash(club: ClubRow): string | null {
-  const url = club.webp_crest_url;
-  if (!url || !url.startsWith("/crests/")) return null;
-  const path = `public${url}`;
-  if (!existsSync(path)) return null;
-  try {
-    return createHash("sha256").update(readFileSync(path)).digest("hex");
-  } catch {
-    return null;
-  }
+  return localCrestHash(club.webp_crest_url);
 }
 
 export interface ClubDuplicateGroup {
