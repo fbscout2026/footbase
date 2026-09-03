@@ -235,10 +235,20 @@ export function buildAppearances(
     for (const p of players) {
       const key = `${side}:${p.shirt}`;
       const cameOn = subOnAt.get(key);
-      const played = p.starter || cameOn != null;
-      if (!played) continue; // reserve who never entered → no atuação
+      // A reserve credited with a goal is proof they were on the pitch, even when the
+      // súmula's own Substituições table has no "Entrou" row for their shirt — a real
+      // gap in the source's own data entry (confirmed live, Session 57: real FES/FGF
+      // súmulas where a reserve scores and is simply never listed as substituted in),
+      // not a parser miss. Before this, that goal was silently dropped from the whole
+      // match's total, failing reconciliation for a match that was otherwise parsed
+      // correctly. Their earliest credited goal is the latest possible entry time we
+      // can PROVE — used as a lower-bound estimate, never a guess at their real minute.
+      const scorerGoals = goals.filter((g) => !g.ownGoal && g.scorer === side && g.shirt === p.shirt);
+      const playedViaGoal = cameOn == null && !p.starter && scorerGoals.length > 0;
+      const played = p.starter || cameOn != null || playedViaGoal;
+      if (!played) continue; // reserve who never entered and never scored → no atuação
 
-      const entry = p.starter ? 0 : cameOn!;
+      const entry = p.starter ? 0 : playedViaGoal ? Math.min(...scorerGoals.map((g) => g.at)) : cameOn!;
       const off = subOffAt.get(key);
       const red = redAt.get(key);
       const exitCandidates = [off, red].filter((v): v is number => v != null);
@@ -249,7 +259,7 @@ export function buildAppearances(
       const windowExit = exitCandidates.length ? Math.min(...exitCandidates) : Infinity;
       const goalsAgainstWhileOn = concededHere.filter((g) => g.at >= entry && g.at < windowExit).length;
 
-      const goalsScored = goals.filter((g) => !g.ownGoal && g.scorer === side && g.shirt === p.shirt).length;
+      const goalsScored = scorerGoals.length;
 
       const redCard = red != null || (yellowCount.get(key) ?? 0) >= 2 ? 1 : 0;
       appearances.push({
