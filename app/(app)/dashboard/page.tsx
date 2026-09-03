@@ -6,12 +6,15 @@ import { AlertaInatividade } from "@/components/dashboard/AlertaInatividade";
 import { AtalhoPrancheta } from "@/components/dashboard/AtalhoPrancheta";
 import { Artilheiros } from "@/components/dashboard/Artilheiros";
 import { AgentesLivres } from "@/components/dashboard/AgentesLivres";
+import { AtletaDestaque } from "@/components/dashboard/AtletaDestaque";
 import { createClient } from "@/lib/supabase/server";
 import { getSessionProfile } from "@/lib/auth/session";
 import {
   loadHeroStats, loadTorneiosDestaque, loadContratosVencendo, loadGemasCategoriaAcima,
   loadInativos, loadBoardSummary, loadTopScorers, loadAgentesLivres, loadNotificationsSummary,
+  loadAtletaDestaque,
 } from "@/lib/services/dashboard";
+import { listClubFavorites } from "@/lib/services/club-favorites";
 
 // Full-width, Transfermarkt-style dense grid: 3 rails (left / center / right)
 // that fill the whole viewport with no empty corners. All data is fetched once
@@ -21,7 +24,17 @@ export default async function DashboardPage() {
   const supabase = await createClient();
   const session = await getSessionProfile();
 
-  const [hero, torneios, contratos, gemas, inativos, board, artilheiros, livres, notifications] = await Promise.all([
+  // "Atleta destaque" is agent-only (per product decision, Session 57) and
+  // needs the agent's own favorited clubs before it can query anything — a
+  // small async helper here keeps it inside the same Promise.all as every
+  // other widget instead of an extra sequential round-trip.
+  const loadAtletaDestaqueForAgent = async () => {
+    if (!session || session.role !== "agent") return [];
+    const favoriteClubs = await listClubFavorites(supabase, session.userId);
+    return loadAtletaDestaque(supabase, favoriteClubs.map((f) => f.clubId), 20);
+  };
+
+  const [hero, torneios, contratos, gemas, inativos, board, artilheiros, livres, notifications, destaque] = await Promise.all([
     loadHeroStats(supabase),
     loadTorneiosDestaque(supabase, 20),
     loadContratosVencendo(supabase, 20),
@@ -31,6 +44,7 @@ export default async function DashboardPage() {
     loadTopScorers(supabase, 20),
     loadAgentesLivres(supabase, 20),
     session ? loadNotificationsSummary(supabase, session.userId) : Promise.resolve({ count: 0, contractsExpiring: 0, inactive: 0, newGems: 0, favoritedClubs: 0, favoritedTournaments: 0 }),
+    loadAtletaDestaqueForAgent(),
   ]);
 
   return (
@@ -47,6 +61,7 @@ export default async function DashboardPage() {
         <aside className="space-y-4 lg:col-span-3">
           <TorneiosDestaque torneios={torneios} />
           <Artilheiros athletes={artilheiros} />
+          {session?.role === "agent" && <AtletaDestaque athletes={destaque} />}
         </aside>
 
         {/* Center — main analysis */}

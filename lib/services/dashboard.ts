@@ -85,6 +85,25 @@ export async function loadAgentesLivres(client: SupabaseClient, limit = 6): Prom
   return (data ?? []).map((r) => ({ ...toAthleteRow(r), goals: r.total_goals }));
 }
 
+// "Atleta destaque" — top scorer among the athletes currently at one of the
+// viewing agent's OWN favorited clubs (Session 57, agent-only widget). Same
+// shape/signal as `loadTopScorers`, just scoped by `current_club_id` instead
+// of global — an empty `clubIds` list (agent hasn't favorited any club yet)
+// never even queries the view, so the widget's empty state is a real "no
+// favorited club" state, not an accidental "no goals anywhere" one.
+export async function loadAtletaDestaque(client: SupabaseClient, clubIds: string[], limit = 6): Promise<ScorerRow[]> {
+  if (clubIds.length === 0) return [];
+  const { data, error } = await client
+    .from("view_atleta_resumo")
+    .select(`${ROW_COLUMNS},total_goals`)
+    .in("current_club_id", clubIds)
+    .gt("total_goals", 0)
+    .order("total_goals", { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return (data ?? []).map((r) => ({ ...toAthleteRow(r), goals: r.total_goals }));
+}
+
 export interface TorneioRow {
   id: string;
   name: string;
