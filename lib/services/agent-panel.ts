@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AthleteEditInput, CorrectionField } from "@/lib/agent-panel-rules";
+import { formatAthleteCode } from "@/lib/format";
 
 export interface AgentProfileRecord {
   id: string; userId: string; fullName: string; agencyName: string | null;
@@ -26,10 +27,15 @@ export interface CorrectionRequestRecord {
 
 export interface AgentFavoriteClubRecord { id: string; clubId: string; name: string; crestUrl: string | null; }
 export interface AgentFavoriteTournamentRecord { id: string; torneioId: string; name: string; category: string | null; year: number | null; }
+export interface AgentFavoriteAthleteRecord {
+  id: string; fbId: number; rating: number; notes: string | null;
+  athleteName: string; athleteNickname: string | null; position: string | null; category: string | null;
+}
 
 export interface AgentPanelData {
   agent: AgentProfileRecord; athletes: AgentAthleteRecord[];
   corrections: CorrectionRequestRecord[]; favoriteCount: number;
+  favoriteAthletes: AgentFavoriteAthleteRecord[];
   favoriteClubs: AgentFavoriteClubRecord[]; favoriteTournaments: AgentFavoriteTournamentRecord[];
 }
 
@@ -69,7 +75,7 @@ export async function loadAgentPanel(client: SupabaseClient, userId: string): Pr
     client.from("solicitacoes_correcao")
       .select("id,fb_id_atleta,field_name,current_value,suggested_value,reason,comprovante_url,status,created_at")
       .eq("requested_by", userId).order("created_at", { ascending: false }),
-    client.from("favoritos").select("id", { count: "exact", head: true }).eq("user_id", userId),
+    client.from("favoritos").select("id,fb_id_atleta,nota,notas,atletas(name,apelido,main_position,current_category)").eq("user_id", userId).order("nota", { ascending: false }),
     client.from("favoritos_clube").select("id,club_id,clubes(name,webp_crest_url,crest_storage_path)").eq("user_id", userId).order("created_at", { ascending: false }),
     client.from("favoritos_torneio").select("id,torneio_id,torneios(name,category,year)").eq("user_id", userId).order("created_at", { ascending: false }),
   ]);
@@ -96,6 +102,11 @@ export async function loadAgentPanel(client: SupabaseClient, userId: string): Pr
     status: row.status, createdAt: row.created_at,
   })) as CorrectionRequestRecord[];
 
+  const favoriteAthletes = (favoritesResult.data ?? []).map((item) => {
+    const athlete = Array.isArray(item.atletas) ? item.atletas[0] : item.atletas;
+    return { id: item.id, fbId: Number(item.fb_id_atleta), rating: item.nota ?? 50, notes: item.notas, athleteName: athlete?.name ?? formatAthleteCode(Number(item.fb_id_atleta)), athleteNickname: athlete?.apelido ?? null, position: athlete?.main_position ?? null, category: athlete?.current_category ?? null };
+  });
+
   const favoriteClubs = (favoriteClubsResult.data ?? []).map((item) => {
     const favClub = Array.isArray(item.clubes) ? item.clubes[0] : item.clubes;
     const crestUrl = favClub?.crest_storage_path ? `/api/clube/crest?club=${item.club_id}` : favClub?.webp_crest_url ?? null;
@@ -106,7 +117,7 @@ export async function loadAgentPanel(client: SupabaseClient, userId: string): Pr
     return { id: item.id, torneioId: String(item.torneio_id), name: torneio?.name ?? "—", category: torneio?.category ?? null, year: torneio?.year ?? null };
   });
 
-  return { agent, athletes, corrections, favoriteCount: favoritesResult.count ?? 0, favoriteClubs, favoriteTournaments };
+  return { agent, athletes, corrections, favoriteCount: favoriteAthletes.length, favoriteAthletes, favoriteClubs, favoriteTournaments };
 }
 
 export async function updateAgentProfile(client: SupabaseClient, id: string, input: {
