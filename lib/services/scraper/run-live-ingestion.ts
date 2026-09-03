@@ -405,7 +405,7 @@ async function processCbfSource(admin: SupabaseClient, cfg: CbfSourceConfig, dry
     withLinks,
     async ({ sumulaUrl: link, idClubeMandante, idClubeVisitante }) => {
       const text = await fetchSumulaText(link);
-      const { match } = parseCbfSumula(text, {
+      const { match, isWalkover } = parseCbfSumula(text, {
         sourceUrl: link,
         // Real numeric CBF club ids (from discovery's jogos API) instead of the
         // name-derived provisional key — this is also what makes the crest
@@ -415,11 +415,11 @@ async function processCbfSource(admin: SupabaseClient, cfg: CbfSourceConfig, dry
         ...(idClubeVisitante ? { awaySourceKey: `cbf:${idClubeVisitante}` } : {}),
       });
       await resolveSourceAthleteIdentities(admin, "cbf", match, identityState, dryRun);
-      const reconciliationErrors = reconcileParsedMatch(match);
+      const reconciliationErrors = reconcileParsedMatch(match, { allowPartialAppearances: isWalkover });
       if (reconciliationErrors.length > 0) {
         return { outcome: "reconciliation-failed" as const, detail: reconciliationErrors.join("; ") };
       }
-      const report = await ingestMatch(admin, match, { dryRun });
+      const report = await ingestMatch(admin, match, { dryRun, allowPartialAppearances: isWalkover });
       const detail = dryRun
         ? `plan: ${report.appearancesUpserted} atuações, ${report.athletesSeeded} atletas novos`
         : `gravado: ${report.appearancesUpserted} atuações` + (report.errors.length ? `; erros: ${report.errors.join("; ")}` : "");
@@ -859,7 +859,7 @@ async function processFgfSource(admin: SupabaseClient, cfg: FgfSourceConfig, dry
       // FGF's roster carries the athlete's real CBF bid directly (same "SÚMULA
       // ON-LINE" template CBF's own competitions use — see discovery/fgf-discover.ts's
       // module doc) — no identity crosswalk/bridge needed, same shape as CBF/FMF.
-      const { match } = parseCbfSumula(text, {
+      const { match, isWalkover } = parseCbfSumula(text, {
         sourceUrl: sumulaUrl,
         homeSourceKey: `fgf-club:${fgfClubSlug(ref.homeName)}`,
         awaySourceKey: `fgf-club:${fgfClubSlug(ref.awayName)}`,
@@ -869,11 +869,11 @@ async function processFgfSource(admin: SupabaseClient, cfg: FgfSourceConfig, dry
         clubFederacao: "FGF",
       });
       await resolveSourceAthleteIdentities(admin, "fgf", match, identityState, dryRun);
-      const reconciliationErrors = reconcileParsedMatch(match);
+      const reconciliationErrors = reconcileParsedMatch(match, { allowPartialAppearances: isWalkover });
       if (reconciliationErrors.length > 0) {
         return { outcome: "reconciliation-failed" as const, detail: reconciliationErrors.join("; "), sourceUrl: sumulaUrl };
       }
-      const report = await ingestMatch(admin, match, { dryRun });
+      const report = await ingestMatch(admin, match, { dryRun, allowPartialAppearances: isWalkover });
       const detail = dryRun
         ? `plan: ${report.appearancesUpserted} atuações, ${report.athletesSeeded} atletas novos`
         : `gravado: ${report.appearancesUpserted} atuações` + (report.errors.length ? `; erros: ${report.errors.join("; ")}` : "");
@@ -937,7 +937,7 @@ async function processFesSource(admin: SupabaseClient, cfg: FesSourceConfig, dry
       // (see discovery/fes-discover.ts) only has the match URL at this point — so the
       // source keys are computed AFTER parsing, from the names the súmula itself
       // reports, rather than injected as opts up front like every other adapter does.
-      const { match } = parseCbfSumula(text, { sourceUrl: sumulaUrl, federation: "FES", clubFederacao: "FES" });
+      const { match, isWalkover } = parseCbfSumula(text, { sourceUrl: sumulaUrl, federation: "FES", clubFederacao: "FES" });
       match.home.sourceKey = `fes-club:${fesClubSlug(match.home.name)}`;
       match.away.sourceKey = `fes-club:${fesClubSlug(match.away.name)}`;
       // Session 57 — the competition page's own standings table pairs each club's
@@ -948,11 +948,11 @@ async function processFesSource(admin: SupabaseClient, cfg: FesSourceConfig, dry
       match.away.crestUrl = clubCrests.get(fesClubSlug(match.away.name)) ?? null;
 
       await resolveSourceAthleteIdentities(admin, "fes", match, identityState, dryRun);
-      const reconciliationErrors = reconcileParsedMatch(match);
+      const reconciliationErrors = reconcileParsedMatch(match, { allowPartialAppearances: isWalkover });
       if (reconciliationErrors.length > 0) {
         return { outcome: "reconciliation-failed" as const, detail: reconciliationErrors.join("; "), sourceUrl: sumulaUrl };
       }
-      const report = await ingestMatch(admin, match, { dryRun });
+      const report = await ingestMatch(admin, match, { dryRun, allowPartialAppearances: isWalkover });
       const detail = dryRun
         ? `plan: ${report.appearancesUpserted} atuações, ${report.athletesSeeded} atletas novos`
         : `gravado: ${report.appearancesUpserted} atuações` + (report.errors.length ? `; erros: ${report.errors.join("; ")}` : "");

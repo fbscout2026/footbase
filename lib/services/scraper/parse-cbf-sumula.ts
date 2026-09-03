@@ -38,6 +38,12 @@ export interface RosterPlayer {
 export interface CbfSumula {
   match: ParsedMatch;
   roster: { home: RosterPlayer[]; away: RosterPlayer[] };
+  /** The match was decided W.O. (walkover) — an administrative score with no real
+   * gameplay, so "Gols"/"Substituições" are legitimately empty (confirmed live,
+   * Session 57: a real FES súmula with "Resultado Final: 3 X 0 W.O" and zero goal/
+   * roster-entry events). Callers should relax reconciliation the same way FMF's
+   * `isWalkover` already does, never treat this as a degraded parse. */
+  isWalkover: boolean;
 }
 
 export interface ParseCbfOptions {
@@ -283,6 +289,12 @@ export function parseCbfSumula(rawText: string, opts: ParseCbfOptions = {}): Cbf
   const finalScore = text.match(/Resultado Final:\s*(\d+)\s*X\s*(\d+)/i);
   const homeScore = finalScore ? Number(finalScore[1]!) : null;
   const awayScore = finalScore ? Number(finalScore[2]!) : null;
+  // Walkover: the score line itself is followed by a literal "W.O" (confirmed live,
+  // Session 57: "Resultado Final: 3 X 0 W.O") — the match never happened, so "Gols"
+  // is legitimately empty even though the official score isn't 0-0. Anchored right
+  // after the score (not a bare `/W\.O\.?/i` over the whole document) so it can never
+  // false-positive on unrelated text elsewhere in the PDF.
+  const isWalkover = finalScore != null && /^\s*W\.O\.?/i.test(text.slice(finalScore.index! + finalScore[0].length));
 
   const home: ParsedClub = {
     sourceKey: opts.homeSourceKey ?? provisionalSourceKey(homeLabel.name, homeLabel.state),
@@ -352,5 +364,5 @@ export function parseCbfSumula(rawText: string, opts: ParseCbfOptions = {}): Cbf
     ownGoals,
   };
 
-  return { match, roster: { home: homeRoster, away: awayRoster } };
+  return { match, roster: { home: homeRoster, away: awayRoster }, isWalkover };
 }
