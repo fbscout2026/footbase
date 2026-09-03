@@ -82,6 +82,37 @@ export function normalizeName(name: string): string {
     .trim();
 }
 
+// A source's own name field is sometimes truncated mid-name (real incident:
+// a CBF súmula/registry row cut off at "andrey fernandes de", missing
+// "oliveira nunes" — confirmed live, Session 57's backfill-cbf-truncated-names.ts
+// fixed the row after the fact, but the resolver itself had no way to catch this
+// WHILE it was happening: a truncated name never equals the real one, so the
+// exact-match tiers below fell straight through to "new" and minted a second
+// identity for the same person). A bare trailing preposition is never how a
+// real, complete Brazilian name ends — unlike generic prefix containment (e.g.
+// "Gabriel da Silva" vs "Gabriel da Silva Campos", already tried and explicitly
+// rejected as unreliable, Session 55: both are complete, plausible names on
+// their own) — so this is a narrow, structurally-justified signal, not a
+// reintroduction of that rejected heuristic. Still never enough alone: only
+// used to WIDEN the name-hit pool that birth_date/current-club then confirms,
+// same trust bar as the exact-name tiers.
+const TRAILING_PREPOSITIONS = new Set(["de", "da", "do", "dos", "das", "e"]);
+
+function looksTruncated(normalized: string): boolean {
+  const words = normalized.split(" ");
+  return words.length > 0 && TRAILING_PREPOSITIONS.has(words[words.length - 1]!);
+}
+
+/** True when `shortName` is exactly `longName` cut off mid-name: a strict
+ * word-boundary prefix ending in a bare preposition, never a coincidence. */
+function isTruncationOf(shortName: string, longName: string): boolean {
+  return shortName !== longName && looksTruncated(shortName) && longName.startsWith(shortName + " ");
+}
+
+function namesMatch(a: string, b: string): boolean {
+  return a === b || isTruncationOf(a, b) || isTruncationOf(b, a);
+}
+
 export function resolveAthleteIdentity(
   candidate: IdentityCandidate,
   ctx: { existing: ExistingAthlete[]; mappings: IdentityMapping[] },
@@ -109,7 +140,7 @@ export function resolveAthleteIdentity(
   // shows up in a CBF súmula under their real, never-seen-before bid) instead of
   // trusting the new number blindly. Never merge on weak evidence.
   const wanted = normalizeName(candidate.name);
-  const nameHits = wanted ? ctx.existing.filter((a) => normalizeName(a.name) === wanted) : [];
+  const nameHits = wanted ? ctx.existing.filter((a) => namesMatch(normalizeName(a.name), wanted)) : [];
 
   if (candidate.birthDate) {
     const strong = nameHits.filter((a) => a.birthDate === candidate.birthDate);
