@@ -32,6 +32,17 @@ function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+/** See parse-cbf-events.ts's identical helper — same fix, same real incident
+ * (a club and its own reserve-team variant sharing a common prefix, e.g.
+ * "Internacional" / "Internacional Sm"), just replicated here since this
+ * parser keeps its own copy of the appearance-composition logic. */
+function disambiguatedTeamToken(name: string, otherName: string): string {
+  if (otherName.length > name.length && otherName.startsWith(name)) {
+    return `${escapeRegExp(name)}(?!${escapeRegExp(otherName.slice(name.length))})`;
+  }
+  return escapeRegExp(name);
+}
+
 /**
  * FMF's card reason isn't behind a "Motivo:" label like CBF/FGF — it's a bare
  * "- <reason>;" line wedged between the player's name and their team, e.g.
@@ -92,6 +103,11 @@ export function buildFmfAppearances(
   const awaySlug = slug(ctx.awayName);
   const sideOf = (teamToken: string): Side => {
     const s = slug(teamToken);
+    // See parse-cbf-events.ts's identical fix: exact match first, since the
+    // collision-safe path can capture a FULL club name that is itself a strict
+    // prefix of the other team's name (e.g. "Internacional" / "Internacional Sm").
+    if (s === awaySlug) return "away";
+    if (s === homeSlug) return "home";
     return s.startsWith(homeSlug) || homeSlug.startsWith(s) ? "home" : "away";
   };
 
@@ -102,7 +118,10 @@ export function buildFmfAppearances(
   const prefixLen = 8;
   const homePrefix = ctx.homeName.slice(0, prefixLen);
   const awayPrefix = ctx.awayName.slice(0, prefixLen);
-  const teamToken = `(?:${escapeRegExp(homePrefix)}|${escapeRegExp(awayPrefix)})`;
+  const teamToken =
+    homePrefix === awayPrefix
+      ? `(?:${disambiguatedTeamToken(ctx.homeName, ctx.awayName)}|${disambiguatedTeamToken(ctx.awayName, ctx.homeName)})`
+      : `(?:${escapeRegExp(homePrefix)}|${escapeRegExp(awayPrefix)})`;
 
   // --- Goals -----------------------------------------------------------------
   const goalsBlock = section(text, /Gols\s*Tempo/i, /NR\s*=\s*Normal|Cartões|Comissão/i);

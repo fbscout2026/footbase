@@ -33,6 +33,34 @@ function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+/**
+ * The team-token pattern for `name`, given its 8-char-truncated prefix collides
+ * with `otherName`'s (real incident, Session 57, FGF: "Internacional" and
+ * "Internacional Sm" — a club and its own reserve-team variant, both truncating
+ * to "Internac"). An adaptive-length prefix was tried first and rejected: once
+ * one full name is a literal prefix of the other, ANY prefix length up to the
+ * shorter name's own length is ambiguous by construction (the shorter name's
+ * full text is itself a substring at the start of every occurrence of the
+ * longer one), so lengthening the prefix can never resolve it — the fix has to
+ * change HOW they're matched, not how much text is captured.
+ *
+ * When one name is a strict prefix of the other, the SHORTER one gets a
+ * negative lookahead for exactly the extra text the longer name adds right
+ * after it ("Internacional(?! Sm)") — so it still matches its own real
+ * occurrences ("Internacional - RS") but never matches at the start of the
+ * other team's ("Internacional Sm - RS"). The longer name always matches
+ * safely on its own literal text, no lookahead needed. Any other kind of
+ * collision (sharing a prefix without either containing the other) falls back
+ * to each name's own full text, which is exceedingly unlikely to recur in
+ * real data and safer than guessing at a magic length.
+ */
+function disambiguatedTeamToken(name: string, otherName: string): string {
+  if (otherName.length > name.length && otherName.startsWith(name)) {
+    return `${escapeRegExp(name)}(?!${escapeRegExp(otherName.slice(name.length))})`;
+  }
+  return escapeRegExp(name);
+}
+
 /** Collapse pdf-parse's word-wrapped "Motivo:" text into one clean line. */
 function cleanReason(raw: string | undefined): string | null {
   if (!raw) return null;
@@ -94,6 +122,14 @@ export function buildAppearances(
   const sideOf = (teamToken: string): Side => {
     const name = teamToken.split("/")[0] ?? teamToken;
     const s = slug(name);
+    // Exact match first: when the collision-safe path above captured a FULL club
+    // name (not just an 8-char prefix), `s` equals one slug exactly — checking
+    // that before the prefix heuristic matters specifically when one full name is
+    // itself a prefix of the other ("Internacional" / "Internacional Sm", Session
+    // 57), where the prefix check alone would wrongly call every exact "Internacional"
+    // match "home" too (homeSlug "internacional-sm" starts with it).
+    if (s === awaySlug) return "away";
+    if (s === homeSlug) return "home";
     return s.startsWith(homeSlug) || homeSlug.startsWith(s) ? "home" : "away";
   };
 
@@ -114,10 +150,21 @@ export function buildAppearances(
   // survives both: it's long enough to disambiguate two real club names, short
   // enough to never itself be cut off, and doesn't depend on a "/UF" suffix that
   // isn't reliably present.
+  //
+  // 8 stays fixed (a real FGF match, Session 57, had "Internacional / RS" playing
+  // "Internacional Sm / RS" — two genuinely different clubs sharing an identical
+  // first 8 characters; lengthening the prefix doesn't fix this, see
+  // `disambiguatedTeamToken`'s doc for why). When the two 8-char prefixes collide,
+  // that helper switches BOTH teams' patterns to their full literal names (with a
+  // negative lookahead on whichever is the shorter, prefix-contained one), instead
+  // of `sideOf()`'s `||` silently resolving the tie to "home" every time.
   const prefixLen = 8;
   const homePrefix = ctx.homeName.slice(0, prefixLen);
   const awayPrefix = ctx.awayName.slice(0, prefixLen);
-  const teamToken = `(?:${escapeRegExp(homePrefix)}|${escapeRegExp(awayPrefix)})`;
+  const teamToken =
+    homePrefix === awayPrefix
+      ? `(?:${disambiguatedTeamToken(ctx.homeName, ctx.awayName)}|${disambiguatedTeamToken(ctx.awayName, ctx.homeName)})`
+      : `(?:${escapeRegExp(homePrefix)}|${escapeRegExp(awayPrefix)})`;
 
   // --- Goals ---------------------------------------------------------------
   // The period token is normally "1T"/"2T" (confirmed for CBF's own súmulas and for
