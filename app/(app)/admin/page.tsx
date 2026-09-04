@@ -14,6 +14,7 @@ import {
 import { loadFederationHierarchy, type FederationHierarchy } from "@/lib/services/admin-federations";
 import { loadPromotionHistory, type PromotionRecord } from "@/lib/services/admin-promotions";
 import { loadDuplicateCandidates, type AdminDuplicateCandidate } from "@/lib/services/admin-athlete-duplicates";
+import { loadAnnouncements, type Announcement } from "@/lib/services/admin-announcements";
 
 // Phase 5.1 guard + layout; 5.2–5.6 load users/claims/corrections/ingestion (admin
 // reads all via RLS). Phase 5.7 adds the representation-transfer module.
@@ -35,7 +36,7 @@ export default async function AdminPage() {
   const [
     profilesR, emailsR, claimsR, correctionsR, logsR,
     athletesR, agentsR, transferR, agentNamesR,
-    federationsR, promotionsR, duplicatesR,
+    federationsR, promotionsR, duplicatesR, announcementsR,
   ] = await Promise.allSettled([
     loadUsers(client),
     loadUserEmails(createAdminClient()),
@@ -49,6 +50,7 @@ export default async function AdminPage() {
     loadFederationHierarchy(client),
     loadPromotionHistory(client),
     loadDuplicateCandidates(client),
+    loadAnnouncements(client),
   ]);
 
   let users: AdminUser[] | null = null;
@@ -97,6 +99,7 @@ export default async function AdminPage() {
       : null;
 
   const duplicateCandidates: AdminDuplicateCandidate[] | null = duplicatesR.status === "fulfilled" ? duplicatesR.value : null;
+  const announcements: Announcement[] | null = announcementsR.status === "fulfilled" ? announcementsR.value : null;
 
-  return <AdminPanel users={users} claims={claims} corrections={corrections} logs={logs} representedAthletes={representedAthletes} eligibleAgents={eligibleAgents} transferHistory={transferHistory} federations={federations} promotionHistory={promotionHistory} duplicateCandidates={duplicateCandidates} />;
+  return <AdminPanel users={users} claims={claims} corrections={corrections} logs={logs} representedAthletes={representedAthletes} eligibleAgents={eligibleAgents} transferHistory={transferHistory} federations={federations} promotionHistory={promotionHistory} duplicateCandidates={duplicateCandidates} announcements={announcements} />;
 }

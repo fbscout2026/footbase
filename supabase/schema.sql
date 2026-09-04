@@ -828,6 +828,22 @@ create table if not exists favoritos_torneio (
 create index if not exists idx_favoritos_torneio_user on favoritos_torneio (user_id);
 
 -- ----------------------------------------------------------------------------
+-- announcements (Session 57) — admin-authored news/updates, read-only for
+-- everyone but admin, surfaced via a clickable dashboard notification.
+-- ----------------------------------------------------------------------------
+create table if not exists announcements (
+  id uuid primary key default gen_random_uuid(),
+  title text not null check (char_length(btrim(title)) between 1 and 160),
+  body text not null check (char_length(btrim(body)) between 1 and 4000),
+  link_url text,
+  published_at timestamptz not null default now(),
+  created_by uuid not null references auth.users (id) on delete restrict,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists idx_announcements_published on announcements (published_at desc);
+
+-- ----------------------------------------------------------------------------
 -- prancheta_tatica (tactical board) + slots
 -- ----------------------------------------------------------------------------
 create table if not exists prancheta_tatica (
@@ -1170,6 +1186,7 @@ alter table atleta_duplicate_candidates enable row level security;
 alter table favoritos enable row level security;
 alter table favoritos_clube enable row level security;
 alter table favoritos_torneio enable row level security;
+alter table announcements enable row level security;
 alter table prancheta_tatica enable row level security;
 alter table prancheta_slots enable row level security;
 alter table solicitacoes_reivindicacao enable row level security;
@@ -1350,6 +1367,12 @@ create policy favoritos_torneio_owner_insert on favoritos_torneio
 create policy favoritos_torneio_owner_delete on favoritos_torneio
   for delete to authenticated
   using (((select auth.uid()) = user_id and private.is_approved()) or private.is_admin());
+
+-- announcements: readable by every approved account; only admin writes.
+create policy announcements_select_approved on announcements
+  for select using ((select private.is_approved()) or (select private.is_admin()));
+create policy announcements_write_admin on announcements
+  for all using (private.is_admin()) with check (private.is_admin());
 
 -- prancheta_tatica: one private board per approved owner.
 create policy prancheta_owner_select on prancheta_tatica

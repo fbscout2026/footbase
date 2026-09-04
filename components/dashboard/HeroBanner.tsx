@@ -41,6 +41,7 @@ export function HeroBanner({ stats, notifications }: { stats: DashboardHeroStats
       label: t("dashboard.hero.notifications"),
       value: String(notifications.count),
       hint: notificationsHint,
+      href: "/novidades",
     },
   ];
 

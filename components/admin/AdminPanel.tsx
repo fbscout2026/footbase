@@ -10,6 +10,7 @@ import { AdminIngestion } from "@/components/admin/AdminIngestion";
 import { AdminRepresentation } from "@/components/admin/AdminRepresentation";
 import { AdminFederations } from "@/components/admin/AdminFederations";
 import { AdminDuplicates } from "@/components/admin/AdminDuplicates";
+import { AdminAnnouncements } from "@/components/admin/AdminAnnouncements";
 import type { AdminUser } from "@/lib/services/admin-users";
 import type { AdminClaim } from "@/lib/services/admin-claims";
 import type { AdminCorrection } from "@/lib/services/admin-corrections";
@@ -18,9 +19,10 @@ import type { RepresentedAthlete, EligibleAgent, TransferRecord } from "@/lib/se
 import type { FederationHierarchy } from "@/lib/services/admin-federations";
 import type { PromotionRecord } from "@/lib/services/admin-promotions";
 import type { AdminDuplicateCandidate } from "@/lib/services/admin-athlete-duplicates";
-import { Activity, ClipboardCheck, Globe2, LayoutDashboard, Repeat, ShieldCheck, Users, Users2 } from "lucide-react";
+import type { Announcement } from "@/lib/services/admin-announcements";
+import { Activity, ClipboardCheck, Globe2, LayoutDashboard, Megaphone, Repeat, ShieldCheck, Users, Users2 } from "lucide-react";
 
-type Tab = "overview" | "users" | "claims" | "corrections" | "ingestion" | "representation" | "federations" | "duplicates";
+type Tab = "overview" | "users" | "claims" | "corrections" | "ingestion" | "representation" | "federations" | "duplicates" | "announcements";
 type ModuleTab = Exclude<Tab, "overview">;
 
 const MODULES: { id: ModuleTab; icon: typeof Users; titleKey: string; descKey: string }[] = [
@@ -31,9 +33,10 @@ const MODULES: { id: ModuleTab; icon: typeof Users; titleKey: string; descKey: s
   { id: "ingestion", icon: Activity, titleKey: "admin.ingestion.title", descKey: "admin.ingestion.desc" },
   { id: "representation", icon: Repeat, titleKey: "admin.representation.title", descKey: "admin.representation.desc" },
   { id: "federations", icon: Globe2, titleKey: "admin.federations.title", descKey: "admin.federations.desc" },
+  { id: "announcements", icon: Megaphone, titleKey: "admin.announcements.title", descKey: "admin.announcements.desc" },
 ];
 
-export function AdminPanel({ users, claims, corrections, logs, representedAthletes, eligibleAgents, transferHistory, federations, promotionHistory, duplicateCandidates }: { users: AdminUser[] | null; claims: AdminClaim[] | null; corrections: AdminCorrection[] | null; logs: ScrapingLog[] | null; representedAthletes: RepresentedAthlete[] | null; eligibleAgents: EligibleAgent[] | null; transferHistory: TransferRecord[] | null; federations: FederationHierarchy | null; promotionHistory: PromotionRecord[] | null; duplicateCandidates: AdminDuplicateCandidate[] | null }) {
+export function AdminPanel({ users, claims, corrections, logs, representedAthletes, eligibleAgents, transferHistory, federations, promotionHistory, duplicateCandidates, announcements }: { users: AdminUser[] | null; claims: AdminClaim[] | null; corrections: AdminCorrection[] | null; logs: ScrapingLog[] | null; representedAthletes: RepresentedAthlete[] | null; eligibleAgents: EligibleAgent[] | null; transferHistory: TransferRecord[] | null; federations: FederationHierarchy | null; promotionHistory: PromotionRecord[] | null; duplicateCandidates: AdminDuplicateCandidate[] | null; announcements: Announcement[] | null }) {
   const { t } = useT();
   const [tab, setTab] = useState<Tab>("overview");
   const tabs: { id: Tab; label: string; icon: typeof Users }[] = [
@@ -68,6 +71,7 @@ export function AdminPanel({ users, claims, corrections, logs, representedAthlet
       {tab === "ingestion" && <AdminIngestion logs={logs} />}
       {tab === "representation" && <AdminRepresentation athletes={representedAthletes} agents={eligibleAgents} history={transferHistory} />}
       {tab === "federations" && <AdminFederations data={federations} />}
+      {tab === "announcements" && <AdminAnnouncements announcements={announcements} />}
     </div>
   </div>;
 }
